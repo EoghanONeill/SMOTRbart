@@ -1,10 +1,11 @@
 Package: SMOTRbart
-Title: What the Package Does (One Line, Title Case)
+Title: Soft Bayesian Additive Regression Trees with Model Trees
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
-           comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
+    c(person("Abdelmounaim", "el Yaakoubi", email = "509792ay@student.eur.nl", role = c("aut")),
+      person('Estevao', 'B. Prado', email = 'estevao.prado@hotmail.com', role=c('aut'), comment = c(ORCID = "0000-0003-2320-085X")),
+      person("Eoghan", "O'Neill", email = "oneill.eoghan.1@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "0000-0002-1274-4248")))
+Description: This package contains an implementation of Soft BAyesian Additive Regression Trees with Model Trees (SMOTR-BART). This combines soft BART (Linero and Yang 2018) and MOTR-BART (Prado et al. 2021).
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -14,3 +15,8 @@ Depends:
 LazyData: true
 URL: https://github.com/EoghanONeill/SMOTRbart
 BugReports: https://github.com/EoghanONeill/SMOTRbart/issues
+LinkingTo: 
+    RcppArmadillo,
+    Rcpp
+Imports: 
+    Rcpp
