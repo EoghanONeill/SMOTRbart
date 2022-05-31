@@ -12,3 +12,5 @@ RoxygenNote: 7.1.1
 Depends: 
     R (>= 2.10)
 LazyData: true
+URL: https://github.com/EoghanONeill/SMOTRbart
+BugReports: https://github.com/EoghanONeill/SMOTRbart/issues
