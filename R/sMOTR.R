@@ -1,7 +1,9 @@
+#' @import Rcpp
 #' @importFrom mvtnorm 'rmvnorm'
 #' @importFrom stats 'rgamma' 'runif' 'dnorm' 'sd' 'rnorm' 'pnorm'
 #' @importFrom MCMCpack 'rdirichlet'
 #' @importFrom truncnorm 'rtruncnorm'
+#' @useDynLib SMOTRbart, .registration = TRUE
 #' @export
 smotr_bart = function(x,
                      y,
@@ -147,7 +149,20 @@ smotr_bart = function(x,
      }
     else{
       #This function creates the phi-matrix based on the standardized data, ancestors object, the phi-function and the bandwidth
-      phi_matrix = t(apply(X_stand,1,phi, anc = anc, tau = tau[[j]]))
+      # phi_matrix = t(apply(X_stand,1,phi, anc = anc, tau = tau[[j]]))
+
+      # print("phi_matrix = ")
+      # print(phi_matrix)
+
+      tautemp = tau[[j]]
+
+      phi_matrix = phi_app(X_stand, anc, tautemp)
+
+      # print("phi2 = ")
+      # print(phi2)
+      #
+      # print("are equal = ")
+      # print(all(phi_matrix == phi2 ))
 
       #This function construct our design matrix based on the phi-matrix and the covariates that are included in the tree
       X = design_matrix(X_stand,anc,phi_matrix)
@@ -181,7 +196,21 @@ smotr_bart = function(x,
       }
       else{
         #This function creates the phi-matrix based on the standardized data, ancestors object, the phi-function and the bandwidth
-        phi_matrix_new = t(apply(X_stand,1,phi, anc = anc_new, tau = tau[[j]]))
+        # phi_matrix_new = t(apply(X_stand,1,phi, anc = anc_new, tau = tau[[j]]))
+
+        # print("phi_matrix_new = ")
+        # print(phi_matrix_new)
+
+        tautemp = tau[[j]]
+
+        phi_matrix_new = phi_app(X_stand, anc_new, tautemp)
+
+        # print("phi2 = ")
+        # print(phi2)
+        #
+        # print("are equal = ")
+        # print(all(phi_matrix_new == phi2 ))
+
         #This function construct our design matrix based on the phi-matrix and the covariates that are included in the tree
         X_new = design_matrix(X_stand,anc_new,phi_matrix_new)
       }
@@ -251,7 +280,23 @@ smotr_bart = function(x,
         X_new = matrix(1, nrow = nrow(X_stand), ncol = 1) #If the ancestors object is null, this means the tree is a stump and the design matrix will be one vector
       }
       else{
-        phi_matrix_new = t(apply(X_stand,1,phi, anc = anc, tau = tau_new[[j]])) # Use the new bandwidth to obtain the new phi-matrix
+        # phi_matrix_new = t(apply(X_stand,1,phi, anc = anc, tau = tau_new[[j]])) # Use the new bandwidth to obtain the new phi-matrix
+
+        # print("phi_matrix_new = ")
+        # print(phi_matrix_new)
+
+
+        tautemp = tau_new[[j]]
+
+        phi_matrix_new = phi_app(X_stand, anc, tautemp)
+
+        # print("phi2 = ")
+        # print(phi2)
+        #
+        # print("are equal = ")
+        # print(all(phi_matrix_new == phi2 ))
+
+
         X_new = design_matrix(X_stand,anc,phi_matrix_new) # And consequently obtain the new design matrix
       }
 

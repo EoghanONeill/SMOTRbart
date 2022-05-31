@@ -47,17 +47,40 @@ get_branch = function(tree){
 psi = function(x,c,tau){
   input = (x-c)/tau # scaling of the distance
   psi = 1/(1+exp(-input)) # the logit transformation
+  # psi = 1/(1+abs(input)) # the logit transformation
+
   return(psi)
 }
 
 # The phi function is the likelihood of following a deterministic path down the tree, inputs: data, bandwidth, split value
 phi = function(x,anc,tau){
+
+  # print("anc = ")
+  # print(anc)
+  # print('tau = ')
+  # print(tau)
   # Firstly, the probability of each consecutive branching step is calculated using the likelihood function
   prob = psi(x[anc[,'var']], anc[,'split_value'],tau)^(anc[,'left']) * (1-psi(x[anc[,'var']], anc[,'split_value'],tau))^(1-anc[,'left'])
   new.anc = cbind(terminal = anc[,'terminal'], prob = prob) # a new object with the probabilities at each branching step is constructed
   agg = aggregate(new.anc,
                   by = list(new.anc[,'terminal']),
                   FUN = prod)
+
+
+  # print("agg  = ")
+  # print(agg)
+  #
+  #
+  # print("product = ")
+  # print(prod(prob))
+  #
+  # psitemp = psi(x[anc[,'var']], anc[,'split_value'],tau)
+  #
+  # prob2 = ifelse((anc[,'left'] ==1), psitemp, 1 - psitemp )
+  #
+  # print("product prob2= ")
+  # print(prod(prob2))
+
   phi = agg[,'prob'] # The probabilities for each terminal node are multiplied with each other and the result is obtained
   return(phi)
 }
@@ -259,7 +282,17 @@ test_function = function(newdata,object){
       # get the branching information and bandwidth of the trained trees and apply to the test data
       if(!is.null(anc)){
 
-      phi_matrix = t(apply(newdata,1,phi, anc = anc, tau = tau))
+      # phi_matrix = t(apply(newdata,1,phi, anc = anc, tau = tau))
+
+
+      # print("phi_matrix = ")
+      # print(phi_matrix)
+
+      phi_matrix = phi_app(newdata, anc, tau)
+
+      # print("phi2 = ")
+      # print(phi2)
+
       design = design_matrix(newdata,anc,phi_matrix)
 
       # calculate the model fit
