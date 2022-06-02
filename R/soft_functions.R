@@ -131,11 +131,43 @@ conditional_tilde = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, an
   Sigma = sigma2*diag(N) + (1/(T*tau_b)) * X_node%*%t(X_node)
   # Sigma_inv = solve(sigma2*diag(N) + (1/(T*tau_b)) * X_node%*%t(X_node))
   # Sigma_inv = solve(Sigma)
-  Sigma_inv = chol2inv(chol(Sigma))
+  temp_chol <- chol(Sigma)
+  Sigma_inv = chol2inv(temp_chol)
   # Sigma_inv = spdinv(Sigma)
 
+  logdettemp <- log(prod(diag(temp_chol)^2))
+  # test_det <- log(det(Sigma))
 
-  log_lik= (-N/2)*log(2*pi) + (-1/2)*log(det(Sigma)) + -(1/2)*t(R)%*%Sigma_inv%*%R
+  # logdettemp2 <- 2*sum(log(diag(temp_chol)))
+
+  # if(logdettemp != test_det){
+  #   print("logdettemp = ")
+  #   print(logdettemp)
+  #
+  #   print("test_det = ")
+  #
+  #   print(test_det)
+  #
+  #   print('logdettemp -test_det' )
+  #   print(logdettemp -test_det)
+  #
+  #   print("logdettemp2 = ")
+  #   print(logdettemp2)
+  #
+  #
+  #   print('logdettemp2 -test_det' )
+  #   print(logdettemp2 -test_det)
+  #
+  #   print('logdettemp -logdettemp2' )
+  #   print(logdettemp -logdettemp2)
+  #
+  #
+  #   stop("logdettemp != test_det")
+  # }
+
+  log_lik= (-N/2)*log(2*pi) + (-1/2)*logdettemp + -(1/2)*t(R)%*%Sigma_inv%*%R
+
+  # log_lik= (-N/2)*log(2*pi) + (-1/2)*log(det(Sigma)) + -(1/2)*t(R)%*%Sigma_inv%*%R
 
   if(is.infinite(log_lik)){
     log_lik = -1e301
@@ -204,16 +236,16 @@ simulate_beta_tilde = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors) 
   r_node = R
   # Lambda_node = solve(t(X_node)%*%X_node + inv_V)
 
-  tempcheck <- any(class(try(chol(t(X_node)%*%X_node + inv_V),silent=T))=="matrix")
-
-  if(!tempcheck){
-    print("inv_V = ")
-    print(inv_V)
-
-    print("t(X_node)%*%X_node = ")
-    print(t(X_node)%*%X_node)
-
-  }
+  # tempcheck <- any(class(try(chol(t(X_node)%*%X_node + inv_V),silent=T))=="matrix")
+  #
+  # if(!tempcheck){
+  #   print("inv_V = ")
+  #   print(inv_V)
+  #
+  #   print("t(X_node)%*%X_node = ")
+  #   print(t(X_node)%*%X_node)
+  #
+  # }
 
   Lambda_node = chol2inv(chol(t(X_node)%*%X_node + inv_V))
 
@@ -226,11 +258,17 @@ simulate_beta_tilde = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors) 
   # try the following
   # using laplaces demon package
 
-  # choltemp <- chol((1/sigma)*(t(X_node)%*%X_node + inv_V))
-  # beta_hat <- rmvnc(1,
-  #                   mu = Lambda_node%*%(t(X_node)%*%r_node),
-  #                   U = choltemp)
+  # lambda_inv <- (t(X_node)%*%X_node + inv_V)
+  # Lambda_node = chol2inv(chol(lambda_inv))
+  # beta_hat <- rmvnp(n=1,
+  #                   mu = as.vector(Lambda_node%*%(t(X_node)%*%r_node)),
+  #                   Omega = (1/sigma2)*lambda_inv)
 
+  # print(" beta_hat = ")
+  # print(beta_hat)
+  #
+  # print("paste(beta_hat, collapse = ',')  = ")
+  # print(paste(beta_hat, collapse = ','))
 
   # Add the beta hat results to the tree matrix
   tree$tree_matrix[,'beta_hat'] = paste(beta_hat, collapse = ',')
@@ -259,8 +297,10 @@ paste_betas = function(trees,ntrees){
   for(i in 1:ntrees){ # loop though all the trees
     tree = trees[[i]]
     beta_hat = get_beta_hat(tree) # get the corresponding estimated beta hat for a single tree
-    betas_trees = rbind(betas_trees,
-                        cbind(betas_trees = beta_hat)) # concatenate the betas vectors vertically
+
+    betas_trees = c(betas_trees,beta_hat)
+    # betas_trees = rbind(betas_trees,
+    #                     cbind(betas_trees = beta_hat)) # concatenate the betas vectors vertically
   }
   return(betas_trees)
 }
@@ -271,6 +311,23 @@ simulate_tau_b = function(betas_trees,sigma2, a,b){
 
   # simulate tau_b for the gamma distribution, which is equivalent to simulating sigma beta for the inverse gamma
   tau_b = rgamma(1, shape = length(betas_trees)/2 + a, rate = t(betas_trees)%*%betas_trees/(2*sigma2) + b)
+
+
+  if(tau_b < 0.0001){
+    print("a = ")
+    print(a)
+
+    print("b = ")
+    print(b)
+
+    print("length(betas_trees) = ")
+    print(length(betas_trees))
+
+    print("t(betas_trees)%*%betas_trees/(2*sigma2) = ")
+    print(t(betas_trees)%*%betas_trees/(2*sigma2))
+
+  }
+
 
   return(tau_b)
 }
