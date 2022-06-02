@@ -129,7 +129,11 @@ conditional_tilde = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, an
 
   # Calculation of covariance matrix
   Sigma = sigma2*diag(N) + (1/(T*tau_b)) * X_node%*%t(X_node)
-  Sigma_inv = solve(sigma2*diag(N) + (1/(T*tau_b)) * X_node%*%t(X_node))
+  # Sigma_inv = solve(sigma2*diag(N) + (1/(T*tau_b)) * X_node%*%t(X_node))
+  # Sigma_inv = solve(Sigma)
+  Sigma_inv = chol2inv(chol(Sigma))
+  # Sigma_inv = spdinv(Sigma)
+
 
   log_lik= (-N/2)*log(2*pi) + (-1/2)*log(det(Sigma)) + -(1/2)*t(R)%*%Sigma_inv%*%R
 
@@ -198,12 +202,35 @@ simulate_beta_tilde = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors) 
   inv_V = diag(p)*inv_V
   X_node = X
   r_node = R
-  Lambda_node = solve(t(X_node)%*%X_node + inv_V)
+  # Lambda_node = solve(t(X_node)%*%X_node + inv_V)
+
+  tempcheck <- any(class(try(chol(t(X_node)%*%X_node + inv_V),silent=T))=="matrix")
+
+  if(!tempcheck){
+    print("inv_V = ")
+    print(inv_V)
+
+    print("t(X_node)%*%X_node = ")
+    print(t(X_node)%*%X_node)
+
+  }
+
+  Lambda_node = chol2inv(chol(t(X_node)%*%X_node + inv_V))
 
   # Generate betas
   beta_hat = rmvnorm(1,
                      mean = Lambda_node%*%(t(X_node)%*%r_node),
                      sigma = sigma2*Lambda_node)
+
+  # this probably involves inversion twice
+  # try the following
+  # using laplaces demon package
+
+  # choltemp <- chol((1/sigma)*(t(X_node)%*%X_node + inv_V))
+  # beta_hat <- rmvnc(1,
+  #                   mu = Lambda_node%*%(t(X_node)%*%r_node),
+  #                   U = choltemp)
+
 
   # Add the beta hat results to the tree matrix
   tree$tree_matrix[,'beta_hat'] = paste(beta_hat, collapse = ',')
@@ -243,7 +270,7 @@ paste_betas = function(trees,ntrees){
 simulate_tau_b = function(betas_trees,sigma2, a,b){
 
   # simulate tau_b for the gamma distribution, which is equivalent to simulating sigma beta for the inverse gamma
-  tau_b = rgamma(1, shape = length(betas_trees)/2 + a, rate = t(betas_trees)%*%betas_trees/sigma2 + b)
+  tau_b = rgamma(1, shape = length(betas_trees)/2 + a, rate = t(betas_trees)%*%betas_trees/(2*sigma2) + b)
 
   return(tau_b)
 }

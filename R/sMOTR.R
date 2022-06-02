@@ -239,8 +239,12 @@ smotr_bart = function(x,
       # Compute the alpha fir the Metropolis-Hastings step based on the type of tree modification and the likelihoods
       a = alpha_mh(l_new,l_old, curr_trees[[j]],new_trees[[j]], type)
 
+      if(!is.logical(min(1,a) > runif(1))){
+        print("a = ")
+        print(a)
+      }
 
-      if(max(1,a) > runif(1)) { # In case the alpha is bigger than a uniformly sampled value between zero and one
+      if(min(1,a) > runif(1)) { # In case the alpha is bigger than a uniformly sampled value between zero and one
 
         curr_trees[[j]] = new_trees[[j]] # The current tree "becomes" the new tree, if the latter is better
 
@@ -274,7 +278,7 @@ smotr_bart = function(x,
 
 
       # Calculate the new bandwidth using Random Walk
-      tau_new[[j]] = tau[[j]]*exp(runif(1,-1))
+      tau_new[[j]] = tau[[j]]*exp(runif(n = 1,min = -1, max = 1))
 
       if(is.null(anc)){
         X_new = matrix(1, nrow = nrow(X_stand), ncol = 1) #If the ancestors object is null, this means the tree is a stump and the design matrix will be one vector
@@ -318,7 +322,12 @@ smotr_bart = function(x,
       # Here, the calculation of alpha doesn't depend on any transition probabilities
       a = exp(l_new - l_old)
 
-      if(max(1,a) > runif(1)) { # In case the alpha is bigger than a uniformly sampled value between zero and one
+      if(!is.logical(min(1,a) > runif(1))){
+        print("a = ")
+        print(a)
+      }
+
+      if(min(1,a) > runif(1)) { # In case the alpha is bigger than a uniformly sampled value between zero and one
 
         tau[[j]] = tau_new[[j]] # The current bandwidth "becomes" the new bandwidth, if the latter is better
 
