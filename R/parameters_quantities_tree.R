@@ -85,7 +85,8 @@ simulate_beta = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors) {
     # invV = diag(p)*inv_V
     X_node = X[curr_X_node_indices == unique_node_indices[i], lm_vars] # Only variables that have been used as split
     r_node = R[curr_X_node_indices == unique_node_indices[i]]
-    Lambda_node = solve(t(X_node)%*%X_node + invV)
+    # Lambda_node = solve(t(X_node)%*%X_node + invV)
+    Lambda_node = chol2inv(chol(t(X_node)%*%X_node + invV))
 
     # Generate betas  -------------------------------------------------
     beta_hat = rmvnorm(1,

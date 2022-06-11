@@ -87,9 +87,8 @@ smotr_bart = function(x,
                              title = 'Running rBART...')
 
 
-  tau_rate = 1/ntrees
+  tau_rate = 1
   tau = rep(tau_rate, ntrees) #sample set of bandwidth for each tree from the exponential distribution
-  tau_new = numeric(ntrees) #initialize a vector of new bandwidths in case of acceptance for the MH-step
 
   #Initialize two additional objects of type list to store the beta's and bandwidths
 
@@ -151,21 +150,12 @@ smotr_bart = function(x,
       #This function creates the phi-matrix based on the standardized data, ancestors object, the phi-function and the bandwidth
       # phi_matrix = t(apply(X_stand,1,phi, anc = anc, tau = tau[[j]]))
 
-      # print("phi_matrix = ")
-      # print(phi_matrix)
-
       tautemp = tau[[j]]
 
       phi_matrix = phi_app(X_stand, anc, tautemp)
 
-      # print("phi2 = ")
-      # print(phi2)
-      #
-      # print("are equal = ")
-      # print(all(phi_matrix == phi2 ))
-
       #This function construct our design matrix based on the phi-matrix and the covariates that are included in the tree
-      X = design_matrix(X_stand,anc,phi_matrix)
+      X = design_matrix(X_stand,curr_trees[[j]],phi_matrix)
     }
 
       # Prior for the beta vector
@@ -174,7 +164,7 @@ smotr_bart = function(x,
       inv_V = 1/V
 
       # Compute the log of the marginalized likelihood and log of the tree prior for the current tree
-      l_old = conditional_tilde(curr_trees[[j]],
+       conditional = conditional_tilde(curr_trees[[j]],
                                 X,
                                 current_partial_residuals,
                                 sigma2,
@@ -185,7 +175,7 @@ smotr_bart = function(x,
                                 tau_b,
                                 ancestors,
                                 ntrees)
-      + get_tree_prior(curr_trees[[j]], alpha, beta)
+       l_old = conditional + get_tree_prior(curr_trees[[j]], alpha, beta)
 
 
       #Now the same principle is applied for constructing the design matrix, now using the new tree
@@ -198,21 +188,13 @@ smotr_bart = function(x,
         #This function creates the phi-matrix based on the standardized data, ancestors object, the phi-function and the bandwidth
         # phi_matrix_new = t(apply(X_stand,1,phi, anc = anc_new, tau = tau[[j]]))
 
-        # print("phi_matrix_new = ")
-        # print(phi_matrix_new)
-
         tautemp = tau[[j]]
 
         phi_matrix_new = phi_app(X_stand, anc_new, tautemp)
 
-        # print("phi2 = ")
-        # print(phi2)
-        #
-        # print("are equal = ")
-        # print(all(phi_matrix_new == phi2 ))
 
         #This function construct our design matrix based on the phi-matrix and the covariates that are included in the tree
-        X_new = design_matrix(X_stand,anc_new,phi_matrix_new)
+        X_new = design_matrix(X_stand,new_trees[[j]],phi_matrix_new)
       }
 
 
@@ -222,7 +204,7 @@ smotr_bart = function(x,
       inv_V_new = 1/V_new
 
       # Compute the log of the marginalized likelihood and the log of the tree prior for the new tree
-      l_new = conditional_tilde(new_trees[[j]],
+      conditional_new = conditional_tilde(new_trees[[j]],
                                 X_new,
                                 current_partial_residuals,
                                 sigma2,
@@ -233,16 +215,12 @@ smotr_bart = function(x,
                                 tau_b,
                                 ancestors,
                                 ntrees)
-     + get_tree_prior(new_trees[[j]], alpha, beta)
+     l_new = conditional_new + get_tree_prior(new_trees[[j]], alpha, beta)
 
 
       # Compute the alpha fir the Metropolis-Hastings step based on the type of tree modification and the likelihoods
       a = alpha_mh(l_new,l_old, curr_trees[[j]],new_trees[[j]], type)
 
-      if(!is.logical(min(1,a) > runif(1))){
-        print("a = ")
-        print(a)
-      }
 
       if(min(1,a) > runif(1)) { # In case the alpha is bigger than a uniformly sampled value between zero and one
 
@@ -255,86 +233,7 @@ smotr_bart = function(x,
         p = p_new
         V = V_new
         inv_V = inv_V_new
-      }
-
-
-      # The Metropolis Hastings MH-step for the bandwidth tau follows the same principle
-
-      # Compute the log of the marginalized likelihood and the log of the tau prior for the current tree
-
-      l_old = conditional_tilde(curr_trees[[j]],
-                                X,
-                                current_partial_residuals,
-                                sigma2,
-                                V,
-                                inv_V,
-                                nu,
-                                lambda,
-                                tau_b,
-                                ancestors,
-                                ntrees)
-      + log(tau_prior(tau[[j]], tau_rate))
-      + log(tau[[j]])
-
-
-      # Calculate the new bandwidth using Random Walk
-      tau_new[[j]] = tau[[j]]*exp(runif(n = 1,min = -1, max = 1))
-
-      if(is.null(anc)){
-        X_new = matrix(1, nrow = nrow(X_stand), ncol = 1) #If the ancestors object is null, this means the tree is a stump and the design matrix will be one vector
-      }
-      else{
-        # phi_matrix_new = t(apply(X_stand,1,phi, anc = anc, tau = tau_new[[j]])) # Use the new bandwidth to obtain the new phi-matrix
-
-        # print("phi_matrix_new = ")
-        # print(phi_matrix_new)
-
-
-        tautemp = tau_new[[j]]
-
-        phi_matrix_new = phi_app(X_stand, anc, tautemp)
-
-        # print("phi2 = ")
-        # print(phi2)
-        #
-        # print("are equal = ")
-        # print(all(phi_matrix_new == phi2 ))
-
-
-        X_new = design_matrix(X_stand,anc,phi_matrix_new) # And consequently obtain the new design matrix
-      }
-
-      # Compute the log of the marginalized likelihood, log of the tau prior for the new tree
-      l_new = conditional_tilde(curr_trees[[j]],
-                                X_new,
-                                current_partial_residuals,
-                                sigma2,
-                                V,
-                                inv_V,
-                                nu,
-                                lambda,
-                                tau_b,
-                                ancestors,
-                                ntrees)
-      + log(tau_prior(tau_new[[j]], tau_rate))
-      + log(tau_new[[j]])
-
-      # Here, the calculation of alpha doesn't depend on any transition probabilities
-      a = exp(l_new - l_old)
-
-      if(!is.logical(min(1,a) > runif(1))){
-        print("a = ")
-        print(a)
-      }
-
-      if(min(1,a) > runif(1)) { # In case the alpha is bigger than a uniformly sampled value between zero and one
-
-        tau[[j]] = tau_new[[j]] # The current bandwidth "becomes" the new bandwidth, if the latter is better
-
-        #And all the other objects are updated:
-        X = X_new
-        phi_matrix = phi_matrix_new
-
+        conditional = conditional_new
       }
 
       # Update beta whether tree accepted or not

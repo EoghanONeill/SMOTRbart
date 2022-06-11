@@ -47,71 +47,56 @@ get_branch = function(tree){
 psi = function(x,c,tau){
   input = (x-c)/tau # scaling of the distance
   psi = 1/(1+exp(-input)) # the logit transformation
-  # psi = 1/(1+abs(input)) # the logit transformation
-
   return(psi)
 }
 
 # The phi function is the likelihood of following a deterministic path down the tree, inputs: data, bandwidth, split value
 phi = function(x,anc,tau){
-
-  # print("anc = ")
-  # print(anc)
-  # print('tau = ')
-  # print(tau)
   # Firstly, the probability of each consecutive branching step is calculated using the likelihood function
   prob = psi(x[anc[,'var']], anc[,'split_value'],tau)^(anc[,'left']) * (1-psi(x[anc[,'var']], anc[,'split_value'],tau))^(1-anc[,'left'])
   new.anc = cbind(terminal = anc[,'terminal'], prob = prob) # a new object with the probabilities at each branching step is constructed
   agg = aggregate(new.anc,
                   by = list(new.anc[,'terminal']),
                   FUN = prod)
-
-
-  # print("agg  = ")
-  # print(agg)
-  #
-  #
-  # print("product = ")
-  # print(prod(prob))
-  #
-  # psitemp = psi(x[anc[,'var']], anc[,'split_value'],tau)
-  #
-  # prob2 = ifelse((anc[,'left'] ==1), psitemp, 1 - psitemp )
-  #
-  # print("product prob2= ")
-  # print(prod(prob2))
-
   phi = agg[,'prob'] # The probabilities for each terminal node are multiplied with each other and the result is obtained
   return(phi)
 }
 
 # The design matrix function takes the element wise products of the relevant covariates in the terminal node and the phi-matrix
 # All the element wise products of the leaves are concatenated into the design matrix, inputs: data, branching information, phi-matrix
-design_matrix = function(x,anc, phi_matrix){
-  #Determine the number of observations and variables in the data-matrix
-  p = ncol(x)
+
+# The variable list function returns the splitting variables for a given terminal node, inputs: tree and terminal number
+variable_list = function(tree, terminal){
+  list_var = 1
+  get_parent = as.numeric(as.character(tree$tree_matrix[terminal,'parent'])) # get the subsequent parent
+  get_split_var = as.numeric(as.character(tree$tree_matrix[get_parent, 'split_variable'])) # get the split variable of the parent
+  list_var = cbind(list_var,get_split_var) # add it to the list
+
+  while(!is.na(get_parent)){ # repeat the same procedure as long as the parent has subsequent parent
+    get_parent = as.numeric(as.character(tree$tree_matrix[get_parent,'parent'])) # get the subsequent parent
+    get_split_var = as.numeric(as.character(tree$tree_matrix[get_parent, 'split_variable']))
+    list_var = cbind(list_var,get_split_var)
+  }
+
+  list_var = unique(as.vector(list_var)) # report only the unique splitting variables
+  list_var = list_var[!is.na(list_var)] # remove the NA value that is related to the root node
+
+  return(list_var)
+}
+
+# The design matrix function return the design matrix for a given tree, input; data, tree and phi_matrix
+design_matrix = function(x,tree, phi_matrix){
+
   n = nrow(x)
+  design = matrix(NA,n,0) # initialize an empty design matrix
 
-  if(is.null(anc)) { # In case of a stump, the only intercept is relevant
-    fullmat = matrix(1,n,1)
+  which_terminal = which(tree$tree_matrix[,'terminal'] == 1)
+  for(j in 1:length(which_terminal)){ # loop over each terminal node
+
+    new_design = x[,variable_list(tree,which_terminal[j])]*phi_matrix[,j] # perform an element wise multiplication of the columns of the leaf variables and the leaf probabilities
+    design = cbind(design,new_design)
   }
-  else{
-    splitted = lapply(split(anc[,'var'], anc[,'terminal']), unique) # determine the variables that were split on for each terminal node
-    names(splitted) = 1:length(splitted) # re-index the terminal nodes to perform the for-loop
-    fullmat = matrix(1,n,0) # initialize the full matrix as a one vector
-    for(i in 1:length(splitted)){
-      indeces = c(1,splitted[[i]]) # take the indexes of the variables that were split on in a certain terminal node
-      newmat = matrix(0,n,p) # initialize a design matrix for the leaf
-      newmat[,indeces] = x[,indeces]*phi_matrix[,i] # perform an element wise multiplication of the phi matrix for a certain leave with the set of regressors of the leaf
-      fullmat = cbind(fullmat,newmat[,indeces]) # append the design matrix for the leaf to the full matrix
-
-    }
-
-    # fullmat = fullmat[,-1]
-  }
-   # remove the initial one vector, to obtain the design matrix
-
-  return(fullmat)
+  return(design)
 }
 
 # The condition tilde function computes the marginalized log likelihood for all nodes for a given tree in accordance to soft MOTR
@@ -129,45 +114,15 @@ conditional_tilde = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, an
 
   # Calculation of covariance matrix
   Sigma = sigma2*diag(N) + (1/(T*tau_b)) * X_node%*%t(X_node)
-  # Sigma_inv = solve(sigma2*diag(N) + (1/(T*tau_b)) * X_node%*%t(X_node))
-  # Sigma_inv = solve(Sigma)
   temp_chol <- chol(Sigma)
   Sigma_inv = chol2inv(temp_chol)
-  # Sigma_inv = spdinv(Sigma)
 
+  # Sigma_inv = solve(sigma2*diag(N) + (1/(T*tau_b)) * X_node%*%t(X_node))
   logdettemp <- log(prod(diag(temp_chol)^2))
-  # test_det <- log(det(Sigma))
-
-  # logdettemp2 <- 2*sum(log(diag(temp_chol)))
-
-  # if(logdettemp != test_det){
-  #   print("logdettemp = ")
-  #   print(logdettemp)
-  #
-  #   print("test_det = ")
-  #
-  #   print(test_det)
-  #
-  #   print('logdettemp -test_det' )
-  #   print(logdettemp -test_det)
-  #
-  #   print("logdettemp2 = ")
-  #   print(logdettemp2)
-  #
-  #
-  #   print('logdettemp2 -test_det' )
-  #   print(logdettemp2 -test_det)
-  #
-  #   print('logdettemp -logdettemp2' )
-  #   print(logdettemp -logdettemp2)
-  #
-  #
-  #   stop("logdettemp != test_det")
-  # }
-
-  log_lik= (-N/2)*log(2*pi) + (-1/2)*logdettemp + -(1/2)*t(R)%*%Sigma_inv%*%R
 
   # log_lik= (-N/2)*log(2*pi) + (-1/2)*log(det(Sigma)) + -(1/2)*t(R)%*%Sigma_inv%*%R
+  log_lik= (-N/2)*log(2*pi) + (-1/2)*logdettemp + -(1/2)*t(R)%*%Sigma_inv%*%R
+
 
   if(is.infinite(log_lik)){
     log_lik = -1e301
@@ -235,40 +190,13 @@ simulate_beta_tilde = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors) 
   X_node = X
   r_node = R
   # Lambda_node = solve(t(X_node)%*%X_node + inv_V)
-
-  # tempcheck <- any(class(try(chol(t(X_node)%*%X_node + inv_V),silent=T))=="matrix")
-  #
-  # if(!tempcheck){
-  #   print("inv_V = ")
-  #   print(inv_V)
-  #
-  #   print("t(X_node)%*%X_node = ")
-  #   print(t(X_node)%*%X_node)
-  #
-  # }
-
   Lambda_node = chol2inv(chol(t(X_node)%*%X_node + inv_V))
+
 
   # Generate betas
   beta_hat = rmvnorm(1,
                      mean = Lambda_node%*%(t(X_node)%*%r_node),
                      sigma = sigma2*Lambda_node)
-
-  # this probably involves inversion twice
-  # try the following
-  # using laplaces demon package
-
-  # lambda_inv <- (t(X_node)%*%X_node + inv_V)
-  # Lambda_node = chol2inv(chol(lambda_inv))
-  # beta_hat <- rmvnp(n=1,
-  #                   mu = as.vector(Lambda_node%*%(t(X_node)%*%r_node)),
-  #                   Omega = (1/sigma2)*lambda_inv)
-
-  # print(" beta_hat = ")
-  # print(beta_hat)
-  #
-  # print("paste(beta_hat, collapse = ',')  = ")
-  # print(paste(beta_hat, collapse = ','))
 
   # Add the beta hat results to the tree matrix
   tree$tree_matrix[,'beta_hat'] = paste(beta_hat, collapse = ',')
@@ -297,10 +225,8 @@ paste_betas = function(trees,ntrees){
   for(i in 1:ntrees){ # loop though all the trees
     tree = trees[[i]]
     beta_hat = get_beta_hat(tree) # get the corresponding estimated beta hat for a single tree
-
-    betas_trees = c(betas_trees,beta_hat)
-    # betas_trees = rbind(betas_trees,
-    #                     cbind(betas_trees = beta_hat)) # concatenate the betas vectors vertically
+    betas_trees = rbind(betas_trees,
+                        cbind(betas_trees = beta_hat)) # concatenate the betas vectors vertically
   }
   return(betas_trees)
 }
@@ -311,7 +237,6 @@ simulate_tau_b = function(betas_trees,sigma2, a,b){
 
   # simulate tau_b for the gamma distribution, which is equivalent to simulating sigma beta for the inverse gamma
   tau_b = rgamma(1, shape = length(betas_trees)/2 + a, rate = t(betas_trees)%*%betas_trees/(2*sigma2) + b)
-
 
   if(tau_b < 0.0001){
     print("a = ")
@@ -327,7 +252,6 @@ simulate_tau_b = function(betas_trees,sigma2, a,b){
     print(t(betas_trees)%*%betas_trees/(2*sigma2))
 
   }
-
 
   return(tau_b)
 }
@@ -348,55 +272,48 @@ test_function = function(newdata,object){
   # Initiliaze matrices to store the predictions for each observation and iteration
   preds = matrix(NA, nrow = nrow(newdata),
                  ncol = n_its)
-  confs = matrix(NA, nrow = nrow(newdata),
-                 ncol = n_its)
+  # confs = matrix(NA, nrow = nrow(newdata),
+  #                ncol = n_its)
 
   # Now loop through iterations and get predictions
   for(i in 1:n_its) {
     pred = numeric(nrow(newdata))
-    conf = numeric(nrow(newdata))
+    # conf = numeric(nrow(newdata))
 
     for(j in 1:ntrees){
 
       # get the tree, beta vector and bandwidth of the soft motr object
       tree = object$trees[[i]][[j]]
       beta = object$beta_trees[[i]][[j]]
-      tau = object$tau_trees[[i]][[j]]
       anc = get_branch(tree)
       # get the branching information and bandwidth of the trained trees and apply to the test data
       if(!is.null(anc)){
 
-      # phi_matrix = t(apply(newdata,1,phi, anc = anc, tau = tau))
+      # phi_matrix = t(apply(newdata,1,phi, anc = anc, tau = 1))
+      phi_matrix =  phi_app(newdata, anc, 1)
 
 
-      # print("phi_matrix = ")
-      # print(phi_matrix)
-
-      phi_matrix = phi_app(newdata, anc, tau)
-
-      # print("phi2 = ")
-      # print(phi2)
-
-      design = design_matrix(newdata,anc,phi_matrix)
+      design = design_matrix(newdata,tree,phi_matrix)
 
       # calculate the model fit
       pred = pred + (design %*% beta)
-      conf = conf + design %*% beta  + rnorm(1,0, sqrt(object$sigma2[[j]])) # add a sample for the normal distribution to obtain confidence intervals
+      # conf = conf + design %*% beta  + rnorm(1,0, sqrt(object$sigma2[[j]])) # add a sample for the normal distribution to obtain confidence intervals
       }
       else{
 
         pred = pred + rep(beta, nrow(newdata))
-        conf = conf + rep(beta, nrow(newdata))  + rnorm(1,0, sqrt(object$sigma2[[j]]))
+        # conf = conf + rep(beta, nrow(newdata))  + rnorm(1,0, sqrt(object$sigma2[[j]]))
       }
 
       }
 
     # re-scale the predictions
     preds[,i] = object$y_mean + object$y_sd*pred
-    confs[,i] = object$y_mean + object$y_sd*conf
+    # confs[,i] = object$y_mean + object$y_sd*conf
 
   }
 
-  return(list(predictions = preds, confidence = confs))
+  return(list(predictions = preds#, confidence = confs
+              ))
 
 }

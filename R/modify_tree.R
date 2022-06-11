@@ -105,7 +105,7 @@ grow_tree = function(X, y, curr_tree, node_min_size, s) {
   max_bad_trees = 10
   count_bad_trees = 0
   bad_trees = TRUE
-
+   
   while (bad_trees ){
 
     # Set up holder for new tree
