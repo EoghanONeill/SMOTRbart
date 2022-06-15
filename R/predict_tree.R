@@ -2,7 +2,7 @@
 predict_motr_bart = function(object, newdata,
                              type = c('all', 'median', 'mean')) {
   # Get the means and sds to standardise the covariates from the test data
- 
+
   center = object$center_x
   scale = object$scale_x
   newdata = as.matrix(cbind(1,scale(newdata, center=center, scale=scale)))

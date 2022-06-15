@@ -2,7 +2,7 @@
 # Description: this script contains auxiliar functions needed to update    #
 # the trees with details and to map the predicted values to each obs       #
 # -------------------------------------------------------------------------#
-
+  
 # 1. fill_tree_details: takes a tree matrix and returns the number of obs in each node in it and the indices of each observation in each terminal node
 # 2. get_predictions: gets the predicted values from a current set of trees
 # 3. get_children: it's a function that takes a node and, if the node is terminal, returns the node. If not, returns the children and calls the function again on the children

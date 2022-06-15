@@ -105,7 +105,7 @@ conditional_tilde = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, an
   #Note that we need to add the number of trees to our input
   #Note that not all input variables are required for the function, but to keep matters congruent we leave them
 
-  T = ntrees
+  # T = ntrees
   N = nrow(X)
   p = ncol(X)
 
@@ -113,16 +113,46 @@ conditional_tilde = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, an
   r_node = R
 
   # Calculation of covariance matrix
-  Sigma = sigma2*diag(N) + (1/(T*tau_b)) * X_node%*%t(X_node)
+  Sigma = sigma2*diag(N) + (1/(ntrees*tau_b)) * X_node%*%t(X_node)
+  # Sigma_inv = solve(sigma2*diag(N) + (1/(T*tau_b)) * X_node%*%t(X_node))
+  # Sigma_inv = solve(Sigma)
   temp_chol <- chol(Sigma)
   Sigma_inv = chol2inv(temp_chol)
+  # Sigma_inv = spdinv(Sigma)
 
-  # Sigma_inv = solve(sigma2*diag(N) + (1/(T*tau_b)) * X_node%*%t(X_node))
   logdettemp <- log(prod(diag(temp_chol)^2))
+  # test_det <- log(det(Sigma))
 
-  # log_lik= (-N/2)*log(2*pi) + (-1/2)*log(det(Sigma)) + -(1/2)*t(R)%*%Sigma_inv%*%R
+  # logdettemp2 <- 2*sum(log(diag(temp_chol)))
+
+  # if(logdettemp != test_det){
+  #   print("logdettemp = ")
+  #   print(logdettemp)
+  #
+  #   print("test_det = ")
+  #
+  #   print(test_det)
+  #
+  #   print('logdettemp -test_det' )
+  #   print(logdettemp -test_det)
+  #
+  #   print("logdettemp2 = ")
+  #   print(logdettemp2)
+  #
+  #
+  #   print('logdettemp2 -test_det' )
+  #   print(logdettemp2 -test_det)
+  #
+  #   print('logdettemp -logdettemp2' )
+  #   print(logdettemp -logdettemp2)
+  #
+  #
+  #   stop("logdettemp != test_det")
+  # }
+
   log_lik= (-N/2)*log(2*pi) + (-1/2)*logdettemp + -(1/2)*t(R)%*%Sigma_inv%*%R
 
+  # log_lik= (-N/2)*log(2*pi) + (-1/2)*log(det(Sigma)) + -(1/2)*t(R)%*%Sigma_inv%*%R
 
   if(is.infinite(log_lik)){
     log_lik = -1e301
@@ -192,7 +222,6 @@ simulate_beta_tilde = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors) 
   # Lambda_node = solve(t(X_node)%*%X_node + inv_V)
   Lambda_node = chol2inv(chol(t(X_node)%*%X_node + inv_V))
 
-
   # Generate betas
   beta_hat = rmvnorm(1,
                      mean = Lambda_node%*%(t(X_node)%*%r_node),
@@ -214,7 +243,7 @@ get_beta_hat = function(sim_beta){
 # The tau prior function calculates the prior probability for the bandwidth
 # This is relevant for the second Metropolis Hastings step, input; tau value and tau rate
 tau_prior= function(tau_value, tau_rate){
-  tau = pexp(tau_value,(1/tau_rate), lower.tail = FALSE)
+  tau = dexp(tau_value,tau_rate)
   return(tau)
 }
 
@@ -237,21 +266,6 @@ simulate_tau_b = function(betas_trees,sigma2, a,b){
 
   # simulate tau_b for the gamma distribution, which is equivalent to simulating sigma beta for the inverse gamma
   tau_b = rgamma(1, shape = length(betas_trees)/2 + a, rate = t(betas_trees)%*%betas_trees/(2*sigma2) + b)
-
-  if(tau_b < 0.0001){
-    print("a = ")
-    print(a)
-
-    print("b = ")
-    print(b)
-
-    print("length(betas_trees) = ")
-    print(length(betas_trees))
-
-    print("t(betas_trees)%*%betas_trees/(2*sigma2) = ")
-    print(t(betas_trees)%*%betas_trees/(2*sigma2))
-
-  }
 
   return(tau_b)
 }
@@ -278,42 +292,38 @@ test_function = function(newdata,object){
   # Now loop through iterations and get predictions
   for(i in 1:n_its) {
     pred = numeric(nrow(newdata))
-    # conf = numeric(nrow(newdata))
 
     for(j in 1:ntrees){
 
       # get the tree, beta vector and bandwidth of the soft motr object
       tree = object$trees[[i]][[j]]
       beta = object$beta_trees[[i]][[j]]
+      tau = object$tau_trees[[i]][[j]]
       anc = get_branch(tree)
       # get the branching information and bandwidth of the trained trees and apply to the test data
       if(!is.null(anc)){
 
-      # phi_matrix = t(apply(newdata,1,phi, anc = anc, tau = 1))
-      phi_matrix =  phi_app(newdata, anc, 1)
+      # phi_matrix = t(apply(newdata,1,phi, anc = anc, tau))
+
+      phi_matrix = phi_app(newdata, anc, tau)
 
 
       design = design_matrix(newdata,tree,phi_matrix)
 
       # calculate the model fit
       pred = pred + (design %*% beta)
-      # conf = conf + design %*% beta  + rnorm(1,0, sqrt(object$sigma2[[j]])) # add a sample for the normal distribution to obtain confidence intervals
       }
       else{
-
         pred = pred + rep(beta, nrow(newdata))
-        # conf = conf + rep(beta, nrow(newdata))  + rnorm(1,0, sqrt(object$sigma2[[j]]))
       }
 
       }
 
     # re-scale the predictions
     preds[,i] = object$y_mean + object$y_sd*pred
-    # confs[,i] = object$y_mean + object$y_sd*conf
 
   }
 
-  return(list(predictions = preds#, confidence = confs
-              ))
+  return(list(predictions = preds))
 
 }
