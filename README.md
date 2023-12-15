@@ -1,7 +1,7 @@
 
 # SMOTRbart
 
-This package contains an implementation of Soft BAyesian Additive Regression Trees with Model Trees (SMOTR-BART). This combines soft BART (Linero and Yang 2018) and MOTR-BART (Prado et al. 2021).
+This package contains an implementation of Soft Bayesian Additive Regression Trees with Model Trees (SMOTR-BART). This combines soft BART (Linero and Yang 2018) and MOTR-BART (Prado et al. 2021).
 
 [Linero, Antonio R., and Yun Yang. _Bayesian regression tree ensembles that adapt to smoothness and sparsity_. Journal of the Royal Statistical Society: Series B (Statistical Methodology) 80.5 (2018): 1087-1110.](https://doi.org/10.1111/rssb.12293)
 

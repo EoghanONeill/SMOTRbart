@@ -184,14 +184,16 @@ get_nterminal = function(tree){
 # The ratio grow function calculates ratio of transition probabilities of the grow step
 # This function is in accordance with the soft BART paper, input: current tree, proposed/new tree
 ratio_grow = function(curr_tree,new_tree){
-  grow_ratio = get_nterminal(curr_tree)/(get_w(new_tree)+1)
+  # grow_ratio = get_nterminal(curr_tree)/(get_w(new_tree)+1)
+  grow_ratio = get_nterminal(curr_tree)/(get_w(new_tree)) # (get_w(new_tree)+1)
   return(grow_ratio)
 }
 
 # The ratio prune function calculates ratio of transition probabilities of the prune step
 # This function is in accordance with the soft BART paper, input: current tree, proposed/new tree
 ratio_prune = function(curr_tree,new_tree){
-  prune_ratio = get_w(new_tree)/(get_nterminal(curr_tree)-1)
+  # prune_ratio = get_w(new_tree)/(get_nterminal(curr_tree)-1)
+  prune_ratio = get_w(curr_tree)/(get_nterminal(curr_tree)-1) #(get_nterminal(curr_tree)-1)
   return(prune_ratio)
 }
 
