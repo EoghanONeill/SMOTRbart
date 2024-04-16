@@ -99,6 +99,21 @@ design_matrix = function(x,tree, phi_matrix){
   return(design)
 }
 
+
+TVPdesign_matrix = function(x, phi_matrix){
+
+  n = nrow(x)
+  design = matrix(NA,n,0) # initialize an empty design matrix
+
+  # which_terminal = which(tree$tree_matrix[,'terminal'] == 1)
+  for(j in 1:ncol(phi_matrix)){ # loop over each terminal node
+
+    new_design = x*phi_matrix[,j] # perform an element wise multiplication of the columns of the leaf variables and the leaf probabilities
+    design = cbind(design,new_design)
+  }
+  return(design)
+}
+
 # The condition tilde function computes the marginalized log likelihood for all nodes for a given tree in accordance to soft MOTR
 # This function is inspired by the tree full conditional function and takes in the same input plus the number of trees
 conditional_tilde = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, ancestors, ntrees) {
