@@ -175,6 +175,100 @@ conditional_tilde = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, an
   return(log_lik)
 }
 
+
+
+
+# The condition tilde function computes the marginalized log likelihood for all nodes for a given tree in accordance to soft MOTR
+# This function is inspired by the tree full conditional function and takes in the same input plus the number of trees
+conditional_tilde2 = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, ancestors, ntrees) {
+  #Note that we need to add the number of trees to our input
+  #Note that not all input variables are required for the function, but to keep matters congruent we leave them
+
+  # T = ntrees
+  N = nrow(X)
+  p = ncol(X)
+
+  X_node = X
+  r_node = R
+  invV = diag(inv_V, ncol = p)
+
+  U = chol ( crossprod ( X_node )+ invV )
+  IR = backsolve (U , diag ( p ))
+  # btilde = crossprod ( t ( IR ))%*%( crossprod (X_node , r_node ) )
+  # beta_hat = btilde + sqrt ( sigma2 )* IR %*% rnorm ( p )
+  tmulambinvmu = crossprod ( t ( IR )%*%( crossprod (X_node , r_node ) ) )
+
+  log_lik = -0.5 * log(V[1])*p    -  sum(log(diag(U))) - #determinant is 2 times det of Choleskey
+    (1/(2*sigma2)) * (- tmulambinvmu)
+
+  # log_lik = -0.5 * (V[1] + (p-1)*V[2]  ) -  sum(diag(U)) - #determinant is 2 times det of Choleskey
+  #   (1/(2*sigma2)) * (- tmulambinvmu)
+
+
+  if(is.na(log_lik)){
+    print("-0.5 * (V[1] + (p-1)*V[2]  ) =")
+    print(-0.5 * (V[1] + (p-1)*V[2]  ))
+
+    print("sum(diag(U)) =")
+    print(sum(diag(U)))
+
+    print(" (1/(2*sigma2)) * (- tmulambinvmu) =")
+    print( (1/(2*sigma2)) * (- tmulambinvmu))
+
+    stop("is.na(log_lik)")
+
+  }
+
+  # # Calculation of covariance matrix
+  # Sigma = sigma2*diag(N) + (1/(ntrees*tau_b)) * X_node%*%t(X_node)
+  # # Sigma_inv = solve(sigma2*diag(N) + (1/(T*tau_b)) * X_node%*%t(X_node))
+  # # Sigma_inv = solve(Sigma)
+  # temp_chol <- chol(Sigma)
+  # Sigma_inv = chol2inv(temp_chol)
+  # # Sigma_inv = spdinv(Sigma)
+  #
+  # logdettemp <- log(prod(diag(temp_chol)^2))
+  # # test_det <- log(det(Sigma))
+  #
+  # # logdettemp2 <- 2*sum(log(diag(temp_chol)))
+
+  # if(logdettemp != test_det){
+  #   print("logdettemp = ")
+  #   print(logdettemp)
+  #
+  #   print("test_det = ")
+  #
+  #   print(test_det)
+  #
+  #   print('logdettemp -test_det' )
+  #   print(logdettemp -test_det)
+  #
+  #   print("logdettemp2 = ")
+  #   print(logdettemp2)
+  #
+  #
+  #   print('logdettemp2 -test_det' )
+  #   print(logdettemp2 -test_det)
+  #
+  #   print('logdettemp -logdettemp2' )
+  #   print(logdettemp -logdettemp2)
+  #
+  #
+  #   stop("logdettemp != test_det")
+  # }
+
+  # log_lik= (-N/2)*log(2*pi) + (-1/2)*logdettemp + -(1/2)*t(R)%*%Sigma_inv%*%R
+
+  # log_lik= (-N/2)*log(2*pi) + (-1/2)*log(det(Sigma)) + -(1/2)*t(R)%*%Sigma_inv%*%R
+
+  if(is.infinite(log_lik)){
+    log_lik = -1e301
+  }
+  return(log_lik)
+}
+
+
+
 #The get w function determine the number of second generation internal nodes in a given tree, input: tree
 get_w = function(tree){
   if(is.null(tree) | nrow(tree$tree_matrix) == 1) { # In case the tree is empty or a stump
@@ -236,13 +330,20 @@ simulate_beta_tilde = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors) 
   inv_V = diag(p)*inv_V
   X_node = X
   r_node = R
-  # Lambda_node = solve(t(X_node)%*%X_node + inv_V)
-  Lambda_node = chol2inv(chol(t(X_node)%*%X_node + inv_V))
+  # # Lambda_node = solve(t(X_node)%*%X_node + inv_V)
+  # Lambda_node = chol2inv(chol(t(X_node)%*%X_node + inv_V))
+  #
+  # # Generate betas
+  # beta_hat = rmvnorm(1,
+  #                    mean = Lambda_node%*%(t(X_node)%*%r_node),
+  #                    sigma = sigma2*Lambda_node)
 
-  # Generate betas
-  beta_hat = rmvnorm(1,
-                     mean = Lambda_node%*%(t(X_node)%*%r_node),
-                     sigma = sigma2*Lambda_node)
+
+  U = chol ( crossprod ( X_node )+ inv_V )
+  IR = backsolve (U , diag ( p ))
+  btilde = crossprod ( t ( IR ))%*%( crossprod (X_node , r_node ) )
+  beta_hat = btilde + sqrt ( sigma2 )* IR %*% rnorm ( p )
+
 
   # Add the beta hat results to the tree matrix
   tree$tree_matrix[,'beta_hat'] = paste(beta_hat, collapse = ',')
@@ -286,6 +387,7 @@ simulate_tau_b = function(betas_trees,sigma2, a,b){
 
   return(tau_b)
 }
+
 
 # The test function is inspired by predict motr bart function, input: test data, soft motr bart object
 #' @export

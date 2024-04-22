@@ -24,34 +24,43 @@ fill_tree_details = function(curr_tree, X) {
   # Start with dummy node indices
   node_indices = rep(1, nrow(X))
 
-  # For all but the top row, find the number of observations falling into each one
-  for(i in 2:nrow(tree_matrix)) {
+  if (nrow(tree_matrix) > 1) {
 
-    # Get the parent
-    curr_parent = as.numeric(tree_matrix[i,'parent'])
+    # For all but the top row, find the number of observations falling into each one
+    for(i in 2:nrow(tree_matrix)) {
 
-    # Find the split variable and value of the parent
-    split_var = as.numeric(tree_matrix[curr_parent,'split_variable'])
-    split_val = as.numeric(tree_matrix[curr_parent, 'split_value'])
+      # Get the parent
+      curr_parent = as.numeric(tree_matrix[i,'parent'])
 
-    # Find whether it's a left or right terminal node
-    left_or_right = ifelse(tree_matrix[curr_parent,'child_left'] == i,
-                           'left', 'right')
-    if(left_or_right == 'left') {
-      # If left use less than condition
-      new_tree_matrix[i,'node_size'] = sum(X[node_indices == curr_parent,split_var] < split_val)
-      node_indices[node_indices == curr_parent][X[node_indices == curr_parent,split_var] < split_val] = i
-    } else {
-      # If right use greater than condition
-      new_tree_matrix[i,'node_size'] = sum(X[node_indices == curr_parent,split_var] >= split_val)
-      node_indices[node_indices == curr_parent][X[node_indices == curr_parent,split_var] >= split_val] = i
-    }
-  } # End of loop through table
+      # Find the split variable and value of the parent
+      split_var = as.numeric(tree_matrix[curr_parent,'split_variable'])
+      split_val = as.numeric(tree_matrix[curr_parent, 'split_value'])
+
+      # # Find whether it's a left or right terminal node
+      # left_or_right = ifelse(tree_matrix[curr_parent,'child_left'] == i,
+      #                        'left', 'right')
+      # if(left_or_right == 'left') {
+      if (tree_matrix[curr_parent, "child_left"] == i) {
+        # If left use less than condition
+        new_tree_matrix[i,'node_size'] <- sum(X[node_indices == curr_parent,split_var] < split_val)
+        node_indices[node_indices == curr_parent][X[node_indices == curr_parent,split_var] < split_val] <- i
+      } else {
+        # # If right use greater than condition
+        # new_tree_matrix[i,'node_size'] = sum(X[node_indices == curr_parent,split_var] >= split_val)
+        # node_indices[node_indices == curr_parent][X[node_indices == curr_parent,split_var] >= split_val] = i
+
+        new_tree_matrix[i, "node_size"] <- sum(node_indices == curr_parent)
+        node_indices[node_indices == curr_parent] <- i
+      }
+    } # End of loop through table
+  }
+
 
   return(list(tree_matrix = new_tree_matrix,
               node_indices = node_indices))
 
 } # End of function
+
 
 # Get predictions ---------------------------------------------------------
 
@@ -76,9 +85,11 @@ get_predictions = function(trees, X, single_tree = FALSE, ancestors) {
       # Get the node indices for the current X matrix
       curr_X_node_indices = fill_tree_details(trees, X)$node_indices
       which_internal = which(trees$tree_matrix[,'terminal'] == 0)
-      split_vars_tree <- trees$tree_matrix[which_internal, 'split_variable']
 
-      if (ancestors == FALSE) {lm_vars <- c(1, sort(unique(as.numeric(split_vars_tree))))}
+      if (ancestors == FALSE) {
+        split_vars_tree <- trees$tree_matrix[which_internal, 'split_variable']
+        lm_vars <- c(1, sort(unique(as.numeric(split_vars_tree))))
+      }
       #if (ancestors == 'all covariates') {lm_vars <- 1:ncol(X)}
       if (ancestors == TRUE) {get_ancs <- get_ancestors(trees)}
 
@@ -480,16 +491,16 @@ get_MH_probability2 <- function(curr_tree, new_tree,l_old, l_new,
   # b_j <- sum(curr_tree$tree_matrix[, "terminal"])
 
   # Get the tree type probabilities
-  # if(nrow(curr_tree$tree_matrix) == 1 ){
-  #   prob_grow <-  1 #trans_prob[1]
-  #   prob_prune <- trans_prob[2]
-  # }else{
-  #   prob_grow <- trans_prob[1]
-  #   prob_prune <- trans_prob[2]
-  # }
+  if(nrow(curr_tree$tree_matrix) == 1 ){
+    prob_grow <-  1 #trans_prob[1]
+    prob_prune <- trans_prob[2]
+  }else{
+    prob_grow <- trans_prob[1]
+    prob_prune <- trans_prob[2]
+  }
 
-  prob_grow <- trans_prob[1]
-  prob_prune <- trans_prob[2]
+  # prob_grow <- trans_prob[1]
+  # prob_prune <- trans_prob[2]
   # l_new <- get_logL(new_tree, new_partial_resid_rescaled, att_weights_new, mu_mu, sigma2_mu, sigma2)
   # l_old <- get_logL(curr_tree, curr_partial_resid_rescaled, att_weights_current, mu_mu, sigma2_mu, sigma2)
 
@@ -545,4 +556,23 @@ get_MH_probability2 <- function(curr_tree, new_tree,l_old, l_new,
   # r <- exp(l_new - l_old) * transition_ratio * tree_ratio
   return(min(1, a))
 }
+
+
+
+# This function returns the number of second generation nodes "w"
+get_gen2 <- function(tree) {
+  if (nrow(tree$tree_matrix) == 1) {
+    w <- 0
+  } else {
+    # indeces <- which(tree$tree_matrix[, "terminal"] == 1)
+    # Determine the parent for each terminal node and find the duplicated parents
+    # w <- as.numeric(sum(duplicated(tree$tree_matrix[indeces,'parent'])))
+    # parents <- tree$tree_matrix[indeces, "parent"]
+    parents <- tree$tree_matrix[tree$tree_matrix[, "terminal"] == 1, "parent"]
+    w <- parents[duplicated(parents)]
+  }
+  return(w)
+}
+
+
 

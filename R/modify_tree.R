@@ -3,7 +3,7 @@
 #              growing, pruning, changing, and swapping moves. It also has #
 #              a function to initialise the trees to stumps                #
 # -------------------------------------------------------------------------#
-  
+
 # 01. create_stump: initialises the trees to a stump
 # 02. update_tree: calls the corresponding function associated to the move grow, prune, change, or swap.
 # 03. grow_tree: grows a tree
@@ -65,6 +65,32 @@ create_stump = function(num_trees,
 
 # Function to update trees ------------------------------------------------
 
+# update_tree = function(y, # Target variable
+#                        X, # Feature matrix
+#                        type = c('grow',   # Grow existing tree
+#                                 'prune',  # Prune existing tree
+#                                 'change', # Change existing tree - change split variable and value for an internal node
+#                                 'swap'),  # Swap existing tree - swap splitting rules for two pairs of terminal nodes
+#                        curr_tree,         # The current set of trees (not required if type is stump)
+#                        node_min_size,     # The minimum size of a node to grow
+#                        s)                 # probability vector to be used during the growing process
+# {
+#
+#   # Call the appropriate function to get the new tree
+#   new_tree = switch(type,
+#                     grow = grow_tree(X, y, curr_tree, node_min_size, s),
+#                     prune = prune_tree(X, y, curr_tree),
+#                     change = change_tree(X, y, curr_tree, node_min_size),
+#                     swap = swap_tree(X, y, curr_tree, node_min_size))
+#
+#   # Return the new tree
+#   return(new_tree)
+#
+# } # End of update_tree function
+#
+# # Grow_tree function ------------------------------------------------------
+
+
 update_tree = function(y, # Target variable
                        X, # Feature matrix
                        type = c('grow',   # Grow existing tree
@@ -73,24 +99,25 @@ update_tree = function(y, # Target variable
                                 'swap'),  # Swap existing tree - swap splitting rules for two pairs of terminal nodes
                        curr_tree,         # The current set of trees (not required if type is stump)
                        node_min_size,     # The minimum size of a node to grow
-                       s)                 # probability vector to be used during the growing process
+                       s, # probability vector to be used during the growing process
+                       max_bad_trees = 10,
+                       splitting_rules) # Maximum of iterations to do to find a good tree with at least node_min_size observations in each leaf
 {
 
   # Call the appropriate function to get the new tree
   new_tree = switch(type,
-                    grow = grow_tree(X, y, curr_tree, node_min_size, s),
+                    grow = grow_tree2(X, y, curr_tree, node_min_size, s, max_bad_trees, splitting_rules),
                     prune = prune_tree(X, y, curr_tree),
-                    change = change_tree(X, y, curr_tree, node_min_size),
-                    swap = swap_tree(X, y, curr_tree, node_min_size))
+                    change = change_tree2(X, y, curr_tree, node_min_size, s, max_bad_trees, splitting_rules)#,# swap = swap_tree(X, y, curr_tree, node_min_size
+  )
 
   # Return the new tree
   return(new_tree)
 
 } # End of update_tree function
 
-# Grow_tree function ------------------------------------------------------
 
-grow_tree = function(X, y, curr_tree, node_min_size, s) {
+grow_tree = function(X, y, curr_tree, node_min_size, s, max_bad_trees, splitting_rules) {
 
   # Set up holder for new tree
   new_tree = curr_tree
@@ -105,7 +132,7 @@ grow_tree = function(X, y, curr_tree, node_min_size, s) {
   max_bad_trees = 10
   count_bad_trees = 0
   bad_trees = TRUE
-   
+
   while (bad_trees ){
 
     # Set up holder for new tree
@@ -172,6 +199,247 @@ grow_tree = function(X, y, curr_tree, node_min_size, s) {
 
 } # End of grow_tree function
 
+
+
+grow_tree2 <- function(X, y, curr_tree, node_min_size, s, max_bad_trees, splitting_rules) {
+  # Get the list of terminal nodes
+  terminal_nodes <- as.numeric(which(curr_tree$tree_matrix[, "terminal"] == 1))
+
+  # Find terminal node sizes
+  terminal_node_size <- as.numeric(curr_tree$tree_matrix[terminal_nodes, "node_size"])
+
+  # If a tree has no more leaves with at least 2 times node_min_size, then this tree cannot grow anymore.
+  #   Then, return the current tree
+  if (all(terminal_node_size < 2 * node_min_size)) {
+    curr_tree$var <- 1
+    return(curr_tree)
+  }
+
+  # Search for a good tree, which does exist using the case specific return above
+  # However, only use a set maximum number of searches
+  bad_tree <- TRUE
+  n_bad_trees <- 0
+  while(bad_tree){
+    # Choose which node to split, set prob to zero for any nodes that are too small
+
+    # Set up holder for new tree
+    new_tree <- curr_tree
+
+    # Add two extra rows to the tree in question
+    new_tree$tree_matrix <- rbind(
+      new_tree$tree_matrix,
+      c(1, NA, NA, NA, NA, NA, NA, NA), # Make sure they're both terminal
+      c(1, NA, NA, NA, NA, NA, NA, NA)
+    )
+
+    # node_to_split <- sample.vec(terminal_nodes, 1,
+    #                             prob = as.integer(terminal_node_size >= 2 * node_min_size))
+    if(length(terminal_nodes)==1){
+      node_to_split <- terminal_nodes[1]
+    }else{
+      node_to_split <- sample(terminal_nodes, 1,
+                              prob = as.integer(terminal_node_size >= 2 * node_min_size))
+    }
+
+
+
+    # Choose a split variable using probability s (can be specified uniformly) from all columns
+    # split_variable <- sample(1:ncol(X), 1, prob = s)
+    split_variable <- sample.int(ncol(X)-1, 1, prob = s)+1
+    # split_variable = sample(2:ncol(X), 1, prob = s)
+
+    # available_values <- sort(unique(X[
+    #   curr_tree$node_indices == node_to_split,
+    #   split_variable
+    # ]), na.last = TRUE)
+
+    # available_values <- collapse::funique(X[curr_tree$node_indices == node_to_split, split_variable], TRUE)
+
+    # # If the number of unique values in the chosen node of the chosen covariate is less then 2 * node_min_size,
+    # # then this is a bad tree choice!
+    # n_values <- length(available_values)
+    # if(n_values < 2 * node_min_size){
+    #   n_bad_trees <- n_bad_trees + 1
+    #   # If we reached the maximum of searches, stop searching for a good tree and return the current tree
+    #   if(n_bad_trees >= max_bad_trees){
+    #     curr_tree$var <- 0
+    #     return(curr_tree)
+    #   }
+    # } else {
+    #   bad_tree <- FALSE
+    # }
+
+    # can reduce the number of splits considered more by using
+    # fnobs and checking if number above or below some available value is beyond the minimum node size
+
+    countout <- fcount(X[curr_tree$node_indices == node_to_split, split_variable], sort = TRUE)
+    available_values <- countout$x
+
+
+
+    if(length(available_values) == 1){
+      # no point in splitting if only one value
+      n_bad_trees = n_bad_trees + 1
+      if(n_bad_trees >= max_bad_trees) {
+        # print(" reached max_bad_trees = ")
+
+        curr_tree$var = 1
+        return(curr_tree)
+      }else{
+        next
+      }
+
+      # new_split_value = available_values[1]
+    } else{
+      if(length(available_values) == 2){
+        if(any(countout$N < node_min_size)){
+          n_bad_trees = n_bad_trees + 1
+          if(n_bad_trees >= max_bad_trees) {
+            # print(" reached max_bad_trees = ")
+            curr_tree$var = 1
+            return(curr_tree)
+          }else{
+            next
+          }
+        }
+        if(splitting_rules == "continuous"){
+          new_split_value = runif(1,available_values[1],available_values[2])
+        }else{
+          new_split_value = available_values[2]
+        }
+      }  else {
+
+        # find smallest and largest split values with less than minimum node size left and right
+        runsum <- 0
+        # min_ind <- 0
+        for(val_ind in 1:length(available_values)){
+          runsum <- runsum + countout$N[val_ind]
+          if(runsum >= node_min_size){
+            min_ind <- val_ind +1
+            break
+          }
+        }
+        runsum <- 0
+        # max_ind <- 0
+        for(val_ind in length(available_values):1){
+          runsum <- runsum + countout$N[val_ind]
+          if(runsum >= node_min_size){
+            max_ind <- val_ind
+            break
+          }
+        }
+
+        # if((min_ind > length(available_values)) | max_ind == 0  ){
+        if((min_ind > length(available_values)) | (min_ind > max_ind)  ){
+          n_bad_trees = n_bad_trees + 1
+          if(n_bad_trees >= max_bad_trees) {
+            # print(" reached max_bad_trees = ")
+
+            curr_tree$var = 1
+            return(curr_tree)
+          }else{
+            next
+          }
+        }
+
+        if(min_ind > max_ind){
+          stop("min_ind > max_ind")
+        }
+
+        # if(min_ind == max_ind+1){
+        #   new_split_value <- available_values[max_ind]
+        # }else{
+        if(min_ind == max_ind){
+          if(splitting_rules == "continuous"){
+            new_split_value <- runif(1,available_values[min_ind-1],available_values[min_ind])
+          }else{
+            new_split_value <- available_values[min_ind]
+          }
+        }else{
+          # new_split_value <- sample(available_values[min_ind:max_ind],1)
+          # new_split_value = runif(1,available_values[min_ind-1],available_values[max_ind])
+          # new_split_value = runif(1,available_values[min_ind],available_values[max_ind])
+          if(splitting_rules == "continuous"){
+            new_split_value = runif(1,available_values[min_ind-1],available_values[max_ind])
+          }else{
+            new_split_value <- sample(available_values[min_ind:max_ind],1)
+          }
+        }
+        # }
+        # split_value = sample(available_values[-c(1,length(available_values))], 1)
+        # split_value = resample(available_values[-c(1,length(available_values))])
+        # new_split_value = sample(available_values[-c(1)],1)
+        # split_value = resample(available_values[-c(1,length(available_values))])
+        # split_value = runif(1,available_values[2],available_values[length(available_values)])
+      }
+    } #  end else length available values greater than 2
+
+    # }
+
+    # # Set up holder for new tree
+    # new_tree <- curr_tree
+    #
+    # # Add two extra rows to the tree in question
+    # new_tree$tree_matrix <- rbind(
+    #   new_tree$tree_matrix,
+    #   c(1, NA, NA, NA, NA, NA, NA, NA), # Make sure they're both terminal
+    #   c(1, NA, NA, NA, NA, NA, NA, NA)
+    # )
+
+    # # Choose a split value such that there is enough observations to the left and right child
+    # if (node_min_size == 0) {
+    #   new_split_value <- resample(available_values)
+    # } else if (node_min_size == 1) {
+    #   new_split_value <- resample(available_values[-1])
+    # } else {
+    #   new_split_value <- resample(available_values[-c(1:node_min_size, (n_values - node_min_size + 2):n_values)])
+    # }
+
+    size_new_tree <- nrow(new_tree$tree_matrix)
+    curr_parent <- new_tree$tree_matrix[node_to_split, "parent"] # Make sure to keep the current parent in there. Will be NA if at the root node
+    new_tree$tree_matrix[node_to_split, 1:7] <- c(
+      0, # No longer terminal
+      size_new_tree - 1, # child_left is penultimate row
+      size_new_tree, # child_right is last row
+      curr_parent,
+      split_variable,
+      new_split_value,
+      NA
+    )
+
+    #  Fill in the parents of these two nodes
+    # new_tree$tree_matrix[size_new_tree,'parent'] = node_to_split
+    new_tree$tree_matrix[c(size_new_tree - 1, size_new_tree), "parent"] <- node_to_split
+
+    # Now call the fill function on this tree
+    new_tree <- fill_tree_details(new_tree, X)
+
+    # Store the covariate name to use it to update the Dirichlet prior of Linero (2016).
+    new_tree$var <- split_variable
+
+    # Check for bad tree
+    if(any(as.numeric(new_tree$tree_matrix[,'node_size']) <= node_min_size)) {
+
+      # print(" bad tree = ")
+      # print(new_tree$tree_matrix)
+      n_bad_trees = n_bad_trees + 1
+    } else {
+      bad_tree = FALSE
+    }
+
+    if(n_bad_trees >= max_bad_trees) {
+      # print(" reached max_bad_trees = ")
+
+      curr_tree$var = 1
+      return(curr_tree)
+    }
+  }
+
+  return(new_tree)
+}
+
+
+
 # Prune_tree function -----------------------------------------------------
 
 prune_tree = function(X, y, curr_tree) {
@@ -210,6 +478,9 @@ prune_tree = function(X, y, curr_tree) {
     # If both are terminal then great
     if( (child_left_terminal == 1) & (child_right_terminal == 1) ) {
       bad_node_to_prune = FALSE # Have chosen a pair of terminal nodes so exist while loop
+    }else {
+      # Remove the node from the terminal node list to avoid sampling this node again
+      terminal_nodes <- terminal_nodes[terminal_nodes != node_to_prune]
     }
 
   }# End of bad node to prune while loop
@@ -261,7 +532,7 @@ prune_tree = function(X, y, curr_tree) {
 
 # change_tree function ----------------------------------------------------
 
-change_tree = function(X, y, curr_tree, node_min_size) {
+change_tree = function(X, y, curr_tree, node_min_size, s, max_bad_trees, splitting_rules) {
 
   # Change a node means change out the split value and split variable of an internal node. Need to make sure that this does now produce a bad tree (i.e. zero terminal nodes)
 
@@ -319,7 +590,7 @@ change_tree = function(X, y, curr_tree, node_min_size) {
       # new_split_value = sample(available_values[-c(1,length(available_values))], 1)
       # new_split_value = resample(available_values[-c(1,length(available_values))])
       new_split_value = runif(1,available_values[2],available_values[length(available_values)-1])
-      
+
     }
     # Update the tree details
     new_tree$tree_matrix[node_to_change,
@@ -350,6 +621,255 @@ change_tree = function(X, y, curr_tree, node_min_size) {
   return(new_tree)
 
 } # End of change_tree function
+
+
+
+change_tree2 <- function(X, y, curr_tree, node_min_size, s, max_bad_trees, splitting_rules) {
+  # Change a node means change out the split value and split variable of a second generation internal node (a node with only two children and no grandchildren etc.)
+
+  # If current tree is a stump nothing to change
+  if (nrow(curr_tree$tree_matrix) == 1) {
+    curr_tree$var <- c(1,1)
+    return(curr_tree)
+  }
+
+  # Need to get the second generation internal nodes and the terminal nodes
+  terminal_nodes <- which(as.numeric(curr_tree$tree_matrix[, "terminal"]) == 1)
+  gen2_nodes <- as.numeric(get_gen2(curr_tree))
+
+
+  # print("gen2_nodes = ")
+  # print(gen2_nodes)
+
+
+  # Create a while loop to get good trees
+  # Create a counter to stop after a certain number of bad trees
+  count_bad_trees <- 0
+  bad_trees <- TRUE
+  while (bad_trees) {
+    # Re-set the placeholder for the new tree
+    new_tree <- curr_tree
+
+    # Choose a second generation node to change. DO NOT USE STANDARD sample(...), this uses a different build-in feature for vectors of length 1!
+    # node_to_change <- sample.vec(gen2_nodes, 1)
+
+    if(length(gen2_nodes ==1)){
+      node_to_change <- gen2_nodes[1]
+    }else{
+      node_to_change <- sample(gen2_nodes, 1)
+    }
+
+    # print("node_to_change = ")
+    # print(node_to_change)
+
+    # Get the covariate that will be changed
+    var_changed_node <- as.numeric(new_tree$tree_matrix[node_to_change, "split_variable"])
+
+    # Use the get_children function to get all the children (grandchildren, etc.) of this node
+    all_children <- get_children(new_tree$tree_matrix, node_to_change)
+
+    # Now find all the observations that fall in these children (these observations thus fall in the chosen node_to_change)
+    use_node_indices <- !is.na(match(new_tree$node_indices, all_children))
+
+    # Create new split variable and value based on ignorance
+    # then check this doesn't give a bad tree
+    # new_split_variable <- sample(1:ncol(X), 1, prob = s)
+    # new_split_variable <- sample.int(ncol(X), 1, prob = s)
+    new_split_variable <- sample.int(ncol(X)-1, 1, prob = s)+1
+    # new_split_variable = sample(2:ncol(X), s)
+    # available_values <- sort(unique(X[
+    #   use_node_indices,
+    #   new_split_variable
+    # ]))
+    # available_values <- collapse::funique(X[use_node_indices,new_split_variable], TRUE)
+    #
+    # n_values <- length(available_values)
+
+    # # If there are not enough available values to at least assign node_min_size amount of observations to the left
+    # #   and right, then it is already a bad tree
+    # if (n_values < 2 * node_min_size) {
+    #   count_bad_trees <- count_bad_trees + 1
+    #   if (count_bad_trees >= max_bad_trees) {
+    #     curr_tree$var <- c(0, 0)
+    #     return(curr_tree)
+    #   }
+    #   # If this a bad tree, skip the rest of this while iteration
+    #   next
+    # } else {
+    #   # Prevent a bad tree to remove the first and (last-1) node_min_size values
+    #   if (node_min_size == 0) {
+    #     new_split_value <- resample(available_values)
+    #   } else if (node_min_size == 1) {
+    #     new_split_value <- resample(available_values[-1])
+    #   } else {
+    #     # Does not work if node_min_size is 0 or 1, hence the ifs
+    #     new_split_value <- resample(available_values[-c(1:node_min_size, (n_values - node_min_size + 2):n_values)])
+    #   }
+    # }
+
+
+
+    countout <- collapse::fcount(X[use_node_indices, new_split_variable], sort = TRUE)
+    available_values <- countout$x
+
+
+    if(length(available_values) == 1){
+      # no point in splitting if only one value
+      count_bad_trees = count_bad_trees + 1
+      if(count_bad_trees >= max_bad_trees) {
+        # print(" reached max_bad_trees = ")
+
+        curr_tree$var <- c(1, 1)
+        return(curr_tree)
+      }else{
+        next
+      }
+
+      # new_split_value = available_values[1]
+    } else{
+      if (length(available_values) == 2){
+
+        if(any(countout$N < node_min_size)){
+          n_bad_trees = n_bad_trees + 1
+          if(n_bad_trees >= max_bad_trees) {
+            # print(" reached max_bad_trees = ")
+
+            curr_tree$var <- c(1, 1)
+            return(curr_tree)
+          }else{
+            next
+          }
+        }
+
+        # new_split_value = available_values[2]
+        # new_split_value = runif(1,available_values[1],available_values[2])
+        if(splitting_rules == "continuous"){
+          new_split_value = runif(1,available_values[1],available_values[2])
+        }else{
+          new_split_value = available_values[2]
+        }
+      }  else {
+
+        # find smallest and largest split values with less than minimum node size left and right
+        runsum <- 0
+        # min_ind <- 0
+        for(val_ind in 1:length(available_values)){
+          runsum <- runsum + countout$N[val_ind]
+          if(runsum >= node_min_size){
+            min_ind <- val_ind +1
+            break
+          }
+        }
+        runsum <- 0
+        # max_ind <- 0
+        for(val_ind in length(available_values):1){
+          runsum <- runsum + countout$N[val_ind]
+          if(runsum >= node_min_size){
+            max_ind <- val_ind
+            break
+          }
+        }
+
+        # if((min_ind > length(available_values)) | max_ind == 0  ){
+        if((min_ind > length(available_values)) | (min_ind > max_ind)  ){
+          count_bad_trees = count_bad_trees + 1
+          if(count_bad_trees >= max_bad_trees) {
+            # print(" reached max_bad_trees = ")
+
+            curr_tree$var <- c(1, 1)
+            return(curr_tree)
+          }else{
+            next
+          }
+        }
+
+        if(min_ind > max_ind){
+          stop("min_ind > max_ind")
+        }
+
+        if(min_ind == max_ind){
+          # new_split_value <- available_values[min_ind]
+          # new_split_value = runif(1,available_values[min_ind-1],available_values[max_ind])
+          if(splitting_rules == "continuous"){
+            new_split_value <- runif(1,available_values[min_ind-1],available_values[min_ind])
+          }else{
+            new_split_value <- available_values[min_ind]
+          }
+        }else{
+          # new_split_value <- sample(available_values[min_ind:max_ind],1)
+          # new_split_value = runif(1,available_values[min_ind],available_values[max_ind])
+          # new_split_value = runif(1,available_values[min_ind-1],available_values[max_ind])
+          if(splitting_rules == "continuous"){
+            new_split_value = runif(1,available_values[min_ind-1],available_values[max_ind])
+          }else{
+            new_split_value <- sample(available_values[min_ind:max_ind],1)
+          }
+        }
+        # split_value = sample(available_values[-c(1,length(available_values))], 1)
+        # split_value = resample(available_values[-c(1,length(available_values))])
+        # new_split_value = sample(available_values[-c(1)],1)
+        # split_value = resample(available_values[-c(1,length(available_values))])
+        # split_value = runif(1,available_values[2],available_values[length(available_values)])
+      }
+    } # end else more than 2 available values
+
+    # if (length(available_values) == 1){
+    #   new_split_value = available_values[1]
+    #   new_tree$var = c(var_changed_node, new_split_variable)
+    # } else if (length(available_values) == 2){
+    #   new_split_value = available_values[2]
+    #   new_tree$var = c(var_changed_node, new_split_variable)
+    # } else {
+    #   # new_split_value = resample(available_values[-c(1,length(available_values))], 1)
+    #   # new_split_value = sample(available_values[-c(1,length(available_values))])
+    #   new_split_value = sample(available_values[-c(1)],1)
+    #   # new_split_value = runif(1,available_values[2],available_values[length(available_values)])
+    #
+    # }
+
+
+
+
+
+    # Update the tree details
+    new_tree$tree_matrix[
+      node_to_change,
+      c(
+        "split_variable",
+        "split_value"
+      )
+    ] <- c(
+      new_split_variable,
+      new_split_value
+    )
+
+    # Update the tree node indices
+    new_tree <- fill_tree_details(new_tree, X)
+
+    # Store the covariate name that was used in the splitting rule of the terminal node that was just changed
+    new_tree$var <- c(var_changed_node, new_split_variable)
+
+    # Another check for bad tree since the children of the changed node can be internal nodes with now fewer then
+    #   node_min_size unique observations
+    if (any(as.numeric(new_tree$tree_matrix[terminal_nodes, "node_size"]) < node_min_size)) {
+      count_bad_trees <- count_bad_trees + 1
+      if (count_bad_trees == max_bad_trees) {
+        curr_tree$var <- c(1, 1)
+        return(curr_tree)
+      }
+    } else {
+      bad_trees <- FALSE
+    }
+  }
+
+  # # this if statement is probably unnecessary, unless "next" occurs in last while looop iteration
+  # if(bad_trees == TRUE){
+  #   curr_tree$var <- c(0, 0)
+  # }
+
+  return(new_tree)
+}
+
 
 # swap_tree function ------------------------------------------------------
 

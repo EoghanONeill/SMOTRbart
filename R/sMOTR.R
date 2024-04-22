@@ -28,14 +28,16 @@ smotr_bart = function(x,
                      # tau_b = 1,
                      mh_tau = FALSE,
                      ancestors = FALSE,
-                     fix_var = TRUE,
+                     fix_var = FALSE,
                      trans_prob = c(2.5, 2.5, 4) / 9, # Probabilities to grow, prune or change, respectively
-                     alpha_prior = FALSE
+                     alpha_prior = FALSE,
+                     max_bad_trees = 10,
+                     splitting_rules = "discrete"
                      ) {
 
 
   # if(fix_var == TRUE){
-    tau_b <- ntrees
+    tau_b <- 1 # ntrees
   # }
 
 
@@ -119,7 +121,7 @@ smotr_bart = function(x,
 
   p = ncol(X_orig)
 
-  if(alpha_prior){
+  if(alpha_prior == TRUE){
     alpha_s <- p
   }else{
     alpha_s <- 1
@@ -152,7 +154,7 @@ smotr_bart = function(x,
       # p = ncol(X_orig)
       # s = rep(1/p,p)
 
-      type = sample_move(curr_trees[[j]], i, 0, #nburn
+      type = sample_move(curr_trees[[j]], i, nburn,
                          trans_prob)
 
       # # Propose a new tree via grow/change/prune/swap
@@ -166,7 +168,9 @@ smotr_bart = function(x,
                                    type = type,
                                    curr_tree = curr_trees[[j]],
                                    node_min_size = node_min_size,
-                                   s = s)
+                                   s = s,
+                                   max_bad_trees = max_bad_trees,
+                                   splitting_rules = splitting_rules)
 
       # print("line 168")
 
@@ -196,7 +200,7 @@ smotr_bart = function(x,
       inv_V = 1/V
 
       # Compute the log of the marginalized likelihood and log of the tree prior for the current tree
-       conditional = conditional_tilde(curr_trees[[j]],
+       conditional = conditional_tilde2(curr_trees[[j]],
                                 X,
                                 current_partial_residuals,
                                 sigma2,
@@ -236,7 +240,7 @@ smotr_bart = function(x,
       inv_V_new = 1/V_new
 
       # Compute the log of the marginalized likelihood and the log of the tree prior for the new tree
-      conditional_new = conditional_tilde(new_trees[[j]],
+      conditional_new = conditional_tilde2(new_trees[[j]],
                                 X_new,
                                 current_partial_residuals,
                                 sigma2,
@@ -267,16 +271,18 @@ smotr_bart = function(x,
 
         curr_trees[[j]] = new_trees[[j]] # The current tree "becomes" the new tree, if the latter is better
 
-        if (type =='change'){
-          var_count[curr_trees[[j]]$var[1] - 1] = var_count[curr_trees[[j]]$var[1] - 1] - 1
-          var_count[curr_trees[[j]]$var[2] - 1] = var_count[curr_trees[[j]]$var[2] - 1] + 1
+        if(curr_trees[[j]]$var[1] > 1){
+          if (type =='change'){
+            var_count[curr_trees[[j]]$var[1] - 1] = var_count[curr_trees[[j]]$var[1] - 1] - 1
+            var_count[curr_trees[[j]]$var[2] - 1] = var_count[curr_trees[[j]]$var[2] - 1] + 1
+          }
+
+          if (type=='grow'){
+            var_count[curr_trees[[j]]$var - 1] = var_count[curr_trees[[j]]$var - 1] + 1 } # -1 because of the intercept in X
+
+          if (type=='prune'){
+            var_count[curr_trees[[j]]$var - 1] = var_count[curr_trees[[j]]$var - 1] - 1 } # -1 because of the intercept in X
         }
-
-        if (type=='grow'){
-          var_count[curr_trees[[j]]$var - 1] = var_count[curr_trees[[j]]$var - 1] + 1 } # -1 because of the intercept in X
-
-        if (type=='prune'){
-          var_count[curr_trees[[j]]$var - 1] = var_count[curr_trees[[j]]$var - 1] - 1 } # -1 because of the intercept in X
 
 
         #And all the other objects and variables are updated:
@@ -317,7 +323,7 @@ smotr_bart = function(x,
       }
 
       # Compute the log of the marginalized likelihood, log of the tau prior for the new tree
-      conditional_new = conditional_tilde(curr_trees[[j]],
+      conditional_new = conditional_tilde2(curr_trees[[j]],
                                           X_new,
                                           current_partial_residuals,
                                           sigma2,
@@ -388,6 +394,11 @@ smotr_bart = function(x,
       tau_b = simulate_tau_b(beta_trees, sigma2, a,b)
     }
 
+    # if (vars_inter_slope == 'TRUE') {
+    #   vars_betas = update_vars_intercepts_slopes(curr_trees, ntrees, sigma2)
+    #   V = 1/c(vars_betas$var_inter, vars_betas$var_slopes)
+    #   inv_V = 1/V
+    # }
 
     # Get the overall log likelihood
     log_lik = sum(dnorm(y_scale, mean = predictions, sd = sqrt(sigma2), log = TRUE))
@@ -414,7 +425,7 @@ smotr_bart = function(x,
 
       }
 
-      if(alpha_prior){
+      if(alpha_prior == TRUE){
         alpha_s <- update_alpha(s, alpha_scale, alpha_a, alpha_b, p, s_update[[2]])
       }
     }
@@ -666,7 +677,7 @@ TVPsoft_bart = function(x,
       inv_V = 1/V
 
       # Compute the log of the marginalized likelihood and log of the tree prior for the current tree
-      conditional = conditional_tilde(curr_trees[[j]],
+      conditional = conditional_tilde2(curr_trees[[j]],
                                       X,
                                       current_partial_residuals,
                                       sigma2,
@@ -709,7 +720,7 @@ TVPsoft_bart = function(x,
       inv_V_new = 1/V_new
 
       # Compute the log of the marginalized likelihood and the log of the tree prior for the new tree
-      conditional_new = conditional_tilde(new_trees[[j]],
+      conditional_new = conditional_tilde2(new_trees[[j]],
                                           X_new,
                                           current_partial_residuals,
                                           sigma2,
@@ -792,7 +803,7 @@ TVPsoft_bart = function(x,
         }
 
         # Compute the log of the marginalized likelihood, log of the tau prior for the new tree
-        conditional_new = conditional_tilde(curr_trees[[j]],
+        conditional_new = conditional_tilde2(curr_trees[[j]],
                                             X_new,
                                             current_partial_residuals,
                                             sigma2,
@@ -866,7 +877,7 @@ TVPsoft_bart = function(x,
     # }
 
     # Update s = (s_1, ..., s_p), where s_p is the probability that predictor q in 1:p is used to create new terminal nodes
-    if (sparse & (i > floor(nburn * 0.5))) {
+    if ( (sparse == TRUE) & (i > floor(nburn * 0.5))) {
       s_update <- update_s(var_count, p, alpha_s)
       s <- s_update[[1]]
       if(length(s) != ncol(X_orig)){
