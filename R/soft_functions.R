@@ -446,3 +446,79 @@ test_function = function(newdata,object){
   return(list(predictions = preds))
 
 }
+
+# The test function is inspired by predict motr bart function, input: test data, soft motr bart object
+#' @export
+TVP_test_function = function(newdata,object){
+
+  # Get the means and standard deviation to standardize the covariates from the test data
+  center = object$center_x
+  scale = object$scale_x
+  newdata = as.matrix(cbind(1,scale(newdata, center=center, scale=scale))) # standardize based on the centers and scales of the training data
+  ntrees = object$ntrees
+
+  # Create holder for predicted values
+  n_its = object$npost
+
+  # Initiliaze matrices to store the predictions for each observation and iteration
+  preds = matrix(NA, nrow = nrow(newdata),
+                 ncol = n_its)
+  # confs = matrix(NA, nrow = nrow(newdata),
+  #                ncol = n_its)
+
+  Lmatleaf <- matrix(1, nrow = nrow(newdata), ncol = ncol(object$y_hat))
+
+  # Now loop through iterations and get predictions
+  for(i in 1:n_its) {
+    pred = numeric(nrow(newdata))
+
+    for(j in 1:ntrees){
+
+      # get the tree, beta vector and bandwidth of the soft motr object
+      tree = object$trees[[i]][[j]]
+      beta = object$beta_trees[[i]][[j]]
+      tau = object$tau_trees[[i]][[j]]
+      anc = get_branch(tree)
+      # get the branching information and bandwidth of the trained trees and apply to the test data
+      # if(!is.null(anc)){
+
+        # phi_matrix = t(apply(newdata,1,phi, anc = anc, tau))
+
+      if(!is.null(anc)){
+
+        phi_matrix = phi_app(newdata, anc, tau)
+
+
+        design = TVPdesign_matrix(Lmatleaf,phi_matrix)
+      }else{
+        design <- Lmatleaf
+      }
+
+        # print("ncol(design)")
+        # print(ncol(design))
+        #
+        # print("nrow(design)")
+        # print(nrow(design))
+        #
+        # print("(beta)")
+        # print((beta))
+
+
+        # calculate the model fit
+        pred = pred + (design %*% beta)
+      # }
+      # else{
+      #   pred = pred + rep(beta, nrow(newdata))
+      # }
+
+    }
+
+    # re-scale the predictions
+    preds[,i] = object$y_mean + object$y_sd*pred
+
+  }
+
+  return(list(predictions = preds))
+
+}
+

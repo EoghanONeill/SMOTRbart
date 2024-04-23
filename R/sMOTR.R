@@ -505,12 +505,14 @@ TVPsoft_bart = function(x,
                       ancestors = FALSE,
                       fix_var = TRUE,
                       trans_prob = c(2.5, 2.5, 4) / 9, # Probabilities to grow, prune or change, respectively
-                      alpha_prior = FALSE
+                      alpha_prior = FALSE,
+                      max_bad_trees = 10,
+                      splitting_rules = "discrete"
                       ) {
 
 
   # if(fix_var == TRUE){
-  tau_b <- ntrees
+  tau_b <- 1 #ntrees
   # }
 
 
@@ -642,7 +644,9 @@ TVPsoft_bart = function(x,
                                    type = type,
                                    curr_tree = curr_trees[[j]],
                                    node_min_size = node_min_size,
-                                   s = s)
+                                   s = s,
+                                   max_bad_trees = max_bad_trees,
+                                   splitting_rules = splitting_rules)
 
 
       # Start calculating the design matrix
