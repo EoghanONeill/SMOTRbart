@@ -472,6 +472,9 @@ TVP_test_function = function(newdata,object){
   for(i in 1:n_its) {
     pred = numeric(nrow(newdata))
 
+
+    tau_b <- object$tau_b_trees[i]
+
     for(j in 1:ntrees){
 
       # get the tree, beta vector and bandwidth of the soft motr object
@@ -512,6 +515,8 @@ TVP_test_function = function(newdata,object){
       # }
 
     }
+
+    pred <- rnorm(n = nrow(pred), mean = pred, sd =  1/sqrt(tau_b))
 
     # re-scale the predictions
     preds[,i] = object$y_mean + object$y_sd*pred
