@@ -327,7 +327,7 @@ simulate_beta_tilde = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors) 
   #Note that not all input variables are required for the function, but to keep matters congruent we leave them
 
   p = ncol(X)
-  inv_V = diag(p)*inv_V
+  inv_V = diag(p)*inv_V[1]
   X_node = X
   r_node = R
   # # Lambda_node = solve(t(X_node)%*%X_node + inv_V)

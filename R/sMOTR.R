@@ -299,58 +299,57 @@ smotr_bart = function(x,
       # The Metropolis Hastings MH-step for the bandwidth tau follows the same principle
 
       if(mh_tau){
-      # Compute the log of the marginalized likelihood and the log of the tau prior for the current tree
+        # Compute the log of the marginalized likelihood and the log of the tau prior for the current tree
 
-      l_old = conditional + log(tau_prior(tau[[j]], tau_rate)) + log(tau[[j]])
+        l_old = conditional + log(tau_prior(tau[[j]], tau_rate)) + log(tau[[j]])
 
-      # Calculate the new bandwidth using Random Walk
-      # tau_new[[j]] = tau[[j]]*exp(runif(n = 1,min = -1,max = 1))
-      tau_new[[j]] = tau[[j]]*(5^(runif(n = 1,min = -1,max = 1)))
+        # Calculate the new bandwidth using Random Walk
+        # tau_new[[j]] = tau[[j]]*exp(runif(n = 1,min = -1,max = 1))
+        tau_new[[j]] = tau[[j]]*(5^(runif(n = 1,min = -1,max = 1)))
 
 
 
-      if(is.null(anc)){
-        X_new = matrix(1, nrow = nrow(X_stand), ncol = 1) #If the ancestors object is null, this means the tree is a stump and the design matrix will be one vector
+        if(is.null(anc)){
+          X_new = matrix(1, nrow = nrow(X_stand), ncol = 1) #If the ancestors object is null, this means the tree is a stump and the design matrix will be one vector
+        }
+        else{
+          # phi_matrix_new = t(apply(X_stand,1,phi, anc = anc, tau = tau_new[[j]])) # Use the new bandwidth to obtain the new phi-matrix
+
+          tautemp = tau_new[[j]]
+
+          phi_matrix_new = phi_app(X_stand, anc, tautemp)
+
+          X_new = design_matrix(X_stand,curr_trees[[j]],phi_matrix_new) # And consequently obtain the new design matrix
+        }
+
+        # Compute the log of the marginalized likelihood, log of the tau prior for the new tree
+        conditional_new = conditional_tilde2(curr_trees[[j]],
+                                            X_new,
+                                            current_partial_residuals,
+                                            sigma2,
+                                            V,
+                                            inv_V,
+                                            nu,
+                                            lambda,
+                                            tau_b,
+                                            ancestors,
+                                            ntrees)
+        l_new = conditional_new + log(tau_prior(tau_new[[j]], tau_rate)) + log(tau_new[[j]])
+
+
+        # Here, the calculation of alpha doesn't depend on any transition probabilities
+        a = exp(l_new - l_old)
+
+        if(a > runif(1)) { # In case the alpha is bigger than a uniformly sampled value between zero and one
+
+          tau[[j]] = tau_new[[j]] # The current bandwidth "becomes" the new bandwidth, if the latter is better
+
+          #And all the other objects are updated:
+          X = X_new
+          phi_matrix = phi_matrix_new
+
+        }
       }
-      else{
-        # phi_matrix_new = t(apply(X_stand,1,phi, anc = anc, tau = tau_new[[j]])) # Use the new bandwidth to obtain the new phi-matrix
-
-        tautemp = tau_new[[j]]
-
-        phi_matrix_new = phi_app(X_stand, anc, tautemp)
-
-        X_new = design_matrix(X_stand,curr_trees[[j]],phi_matrix_new) # And consequently obtain the new design matrix
-      }
-
-      # Compute the log of the marginalized likelihood, log of the tau prior for the new tree
-      conditional_new = conditional_tilde2(curr_trees[[j]],
-                                          X_new,
-                                          current_partial_residuals,
-                                          sigma2,
-                                          V,
-                                          inv_V,
-                                          nu,
-                                          lambda,
-                                          tau_b,
-                                          ancestors,
-                                          ntrees)
-      l_new = conditional_new + log(tau_prior(tau_new[[j]], tau_rate)) + log(tau_new[[j]])
-
-
-      # Here, the calculation of alpha doesn't depend on any transition probabilities
-      a = exp(l_new - l_old)
-
-      if(a > runif(1)) { # In case the alpha is bigger than a uniformly sampled value between zero and one
-
-        tau[[j]] = tau_new[[j]] # The current bandwidth "becomes" the new bandwidth, if the latter is better
-
-        #And all the other objects are updated:
-        X = X_new
-        phi_matrix = phi_matrix_new
-
-      }
-
-    }
 
 
       # print("line 340")
@@ -752,17 +751,19 @@ TVPsoft_bart = function(x,
 
         curr_trees[[j]] = new_trees[[j]] # The current tree "becomes" the new tree, if the latter is better
 
-        if (type =='change'){
-          var_count[curr_trees[[j]]$var[1] - 1] = var_count[curr_trees[[j]]$var[1] - 1] - 1
-          var_count[curr_trees[[j]]$var[2] - 1] = var_count[curr_trees[[j]]$var[2] - 1] + 1
+        if(curr_trees[[j]]$var[1] > 1){
+
+          if (type =='change'){
+            var_count[curr_trees[[j]]$var[1] - 1] = var_count[curr_trees[[j]]$var[1] - 1] - 1
+            var_count[curr_trees[[j]]$var[2] - 1] = var_count[curr_trees[[j]]$var[2] - 1] + 1
+          }
+
+          if (type=='grow'){
+            var_count[curr_trees[[j]]$var - 1] = var_count[curr_trees[[j]]$var - 1] + 1 } # -1 because of the intercept in X
+
+          if (type=='prune'){
+            var_count[curr_trees[[j]]$var - 1] = var_count[curr_trees[[j]]$var - 1] - 1 } # -1 because of the intercept in X
         }
-
-        if (type=='grow'){
-          var_count[curr_trees[[j]]$var - 1] = var_count[curr_trees[[j]]$var - 1] + 1 } # -1 because of the intercept in X
-
-        if (type=='prune'){
-          var_count[curr_trees[[j]]$var - 1] = var_count[curr_trees[[j]]$var - 1] - 1 } # -1 because of the intercept in X
-
 
         #And all the other objects and variables are updated:
         anc = anc_new
