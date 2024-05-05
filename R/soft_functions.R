@@ -180,7 +180,7 @@ conditional_tilde = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, an
 
 # The condition tilde function computes the marginalized log likelihood for all nodes for a given tree in accordance to soft MOTR
 # This function is inspired by the tree full conditional function and takes in the same input plus the number of trees
-conditional_tilde2 = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, ancestors, ntrees) {
+conditional_tilde2 = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, ancestors, ntrees, coeff_prior_conj) {
   #Note that we need to add the number of trees to our input
   #Note that not all input variables are required for the function, but to keep matters congruent we leave them
 
@@ -190,7 +190,15 @@ conditional_tilde2 = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, a
 
   X_node = X
   r_node = R
-  invV = diag(inv_V, ncol = p)
+  # invV = diag(inv_V, ncol = p)
+
+  if(coeff_prior_conj == TRUE){
+    invV = diag(inv_V, ncol = p)
+  }else{
+    invV = sigma2*diag(inv_V, ncol = p)
+    V <- V/sigma2
+  }
+
 
   U = chol ( crossprod ( X_node )+ invV )
   IR = backsolve (U , diag ( p ))
@@ -323,11 +331,18 @@ alpha_mh = function(l_new,l_old, curr_trees,new_trees, type){
 
 # The simulate beta tilde simulates the beta tilde in accordance to soft MOTR
 # This function is inspired by the simulates beta function and takes in the same inputs
-simulate_beta_tilde = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors) {
+simulate_beta_tilde = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors, coeff_prior_conj) {
   #Note that not all input variables are required for the function, but to keep matters congruent we leave them
 
   p = ncol(X)
-  inv_V = diag(p)*inv_V[1]
+  # inv_V = diag(p)*inv_V[1]
+
+  if(coeff_prior_conj == TRUE){
+    inv_V = diag(p)*inv_V[1]
+  }else{
+    inv_V = sigma2*diag(p)*inv_V[1]
+  }
+
   X_node = X
   r_node = R
   # # Lambda_node = solve(t(X_node)%*%X_node + inv_V)
@@ -380,10 +395,14 @@ paste_betas = function(trees,ntrees){
 
 # The simulate tau b function simulates the full conditional that follows from a prior in Prado et al. (2021),
 # inputs: beta hat vector, sigma squared and the prior parameters
-simulate_tau_b = function(betas_trees,sigma2, a,b){
+simulate_tau_b = function(betas_trees,sigma2, coeff_prior_conj, a,b){
 
   # simulate tau_b for the gamma distribution, which is equivalent to simulating sigma beta for the inverse gamma
-  tau_b = rgamma(1, shape = length(betas_trees)/2 + a, rate = t(betas_trees)%*%betas_trees/(2*sigma2) + b)
+  if(coeff_prior_conj == TRUE){
+    tau_b = rgamma(1, shape = length(betas_trees)/2 + a, rate = t(betas_trees)%*%betas_trees/(2*sigma2) + b)
+  }else{
+    tau_b = rgamma(1, shape = length(betas_trees)/2 + a, rate = t(betas_trees)%*%betas_trees/(2) + b)
+  }
 
   return(tau_b)
 }

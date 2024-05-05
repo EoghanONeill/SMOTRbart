@@ -32,7 +32,11 @@ smotr_bart = function(x,
                      trans_prob = c(2.5, 2.5, 4) / 9, # Probabilities to grow, prune or change, respectively
                      alpha_prior = FALSE,
                      max_bad_trees = 10,
-                     splitting_rules = "discrete"
+                     splitting_rules = "discrete",
+                     coeff_prior_conj = TRUE,
+                     k = 2,
+                     sigquant = .90,
+                     centre_y = TRUE
                      ) {
 
 
@@ -134,6 +138,46 @@ smotr_bart = function(x,
   s = rep(1/p,p)
 
 
+  if(centre_y){
+    y_max <- max(y_scale)
+    y_min <- min(y_scale)
+  }else{
+    y_max <- 0
+    y_min <- 0
+  }
+  y_scale <- y_scale - (y_max + y_min)/2
+
+  sigma2_beta <- (max(y_scale)-min(y_scale))/((2 * k * sqrt(ntrees))^2)
+
+  tau_b = 1 #ntrees
+
+  if(coeff_prior_conj == FALSE){
+    tau_b <- 1/sigma2_beta
+  }
+
+  tau_b = 1
+
+  V = rep(1/tau_b, 2)
+  inv_V = 1/V
+
+
+  if( coeff_prior_conj == FALSE ) {
+    if(p < n) {
+      df = data.frame(x,y_scale)
+      lmf = lm(y_scale~.,df)
+      sigest = summary(lmf)$sigma
+    } else {
+      sigest = sd(y_scale)
+    }
+
+    qchi = qchisq(1.0-sigquant,nu)
+    lambda = (sigest*sigest*qchi)/nu #lambda parameter for sigma prior
+
+
+    sigma2 <- sigest^2
+  }
+
+
   # Start the MCMC iterations loop
   for (i in 1:TotIter) {
 
@@ -210,7 +254,8 @@ smotr_bart = function(x,
                                 lambda,
                                 tau_b,
                                 ancestors,
-                                ntrees)
+                                ntrees,
+                                coeff_prior_conj)
        l_old = conditional #+ get_tree_prior(curr_trees[[j]], alpha, beta)
 
 
@@ -250,7 +295,8 @@ smotr_bart = function(x,
                                 lambda,
                                 tau_b,
                                 ancestors,
-                                ntrees)
+                                ntrees,
+                                coeff_prior_conj)
      l_new = conditional_new #+ get_tree_prior(new_trees[[j]], alpha, beta)
 
 
@@ -333,7 +379,8 @@ smotr_bart = function(x,
                                             lambda,
                                             tau_b,
                                             ancestors,
-                                            ntrees)
+                                            ntrees,
+                                            coeff_prior_conj)
         l_new = conditional_new + log(tau_prior(tau_new[[j]], tau_rate)) + log(tau_new[[j]])
 
 
@@ -362,7 +409,8 @@ smotr_bart = function(x,
                                       inv_V,
                                       tau_b,
                                       nu,
-                                      ancestors)
+                                      ancestors,
+                                      coeff_prior_conj)
 
       # Obtain the estimated beta's and subsequently the current tree fit
       beta_hat[[j]] = get_beta_hat(curr_trees[[j]])
@@ -390,7 +438,7 @@ smotr_bart = function(x,
     beta_trees = paste_betas(curr_trees,ntrees)
 
     if(fix_var==FALSE){
-      tau_b = simulate_tau_b(beta_trees, sigma2, a,b)
+      tau_b = simulate_tau_b(beta_trees, sigma2, coeff_prior_conj, a,b)
     }
 
     # if (vars_inter_slope == 'TRUE') {
@@ -451,7 +499,7 @@ smotr_bart = function(x,
 
   return(list(trees = tree_store,
               sigma2 = sigma2_store*y_sd^2,
-              y_hat = y_hat_store*y_sd + y_mean,
+              y_hat = (y_hat_store + (y_max + y_min)/2 )*y_sd + y_mean,
               beta_trees = beta_store,
               tau_trees = tau_store,
               tau_b_trees = tau_b_store,
@@ -467,7 +515,9 @@ smotr_bart = function(x,
               ancestors = ancestors,
               var_count_store = var_count_store,
               s = s_prob_store,
-              alpha_s_store = alpha_s_store
+              alpha_s_store = alpha_s_store,
+              y_max = y_max,
+              y_min = y_min
               ))
 }
 

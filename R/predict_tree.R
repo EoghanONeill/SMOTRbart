@@ -29,9 +29,9 @@ predict_motr_bart = function(object, newdata,
 
   # Sort out what to return
   out = switch(type,
-               all = object$y_mean + object$y_sd * y_hat_mat,
-               mean = object$y_mean + object$y_sd * apply(y_hat_mat,2,'mean'),
-               median = object$y_mean + object$y_sd * apply(y_hat_mat,2,'median'))
+               all = object$y_mean + object$y_sd * ( y_hat_mat + (object$y_max + object$y_min)/2),
+               mean = object$y_mean + object$y_sd * ( apply(y_hat_mat,2,'mean')+ (object$y_max + object$y_min)/2),
+               median = object$y_mean + object$y_sd * ( apply(y_hat_mat,2,'median')+ (object$y_max + object$y_min)/2))
 
   return(out)
 
