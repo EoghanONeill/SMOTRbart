@@ -21,4 +21,5 @@ LinkingTo:
 Imports: 
     Rcpp,
     collapse,
-    SoftBart
+    SoftBart,
+    MCMCpack

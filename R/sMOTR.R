@@ -556,7 +556,8 @@ TVPsoft_bart = function(x,
                       trans_prob = c(2.5, 2.5, 4) / 9, # Probabilities to grow, prune or change, respectively
                       alpha_prior = FALSE,
                       max_bad_trees = 10,
-                      splitting_rules = "discrete"
+                      splitting_rules = "discrete",
+                      coeff_prior_conj = TRUE
                       ) {
 
 
@@ -565,6 +566,7 @@ TVPsoft_bart = function(x,
   # }
 
 
+  # print("Line 568")
 
   x = as.data.frame(x)
 
@@ -658,6 +660,7 @@ TVPsoft_bart = function(x,
 
   s = rep(1/p,p)
 
+  # print("Line 568")
 
   # Start the MCMC iterations loop
   for (i in 1:TotIter) {
@@ -665,14 +668,17 @@ TVPsoft_bart = function(x,
     utils::setTxtProgressBar(pb, i)
 
 
+    # print("Line 670")
 
 
     # Start looping through trees
     for (j in 1:ntrees) {
+      # print("Line 674")
 
       X = X_stand #For each tree, the design matrix start as the standardized matrix
 
       current_partial_residuals = y_scale - predictions + tree_fits_store[,j]
+      # print("Line 680")
 
       # The number of covariates to sample from and the sample probabilities as based on the original X-matrix
       # p = ncol(X_orig)
@@ -681,6 +687,7 @@ TVPsoft_bart = function(x,
       type = sample_move(curr_trees[[j]], i, 0, #nburn
                          trans_prob)
 
+      # print("Line 686")
 
       # # Propose a new tree via grow/change/prune/swap
       # type = sample(c('grow', 'prune', 'change'), 1)
@@ -697,6 +704,7 @@ TVPsoft_bart = function(x,
                                    max_bad_trees = max_bad_trees,
                                    splitting_rules = splitting_rules)
 
+      # print("Line 706")
 
       # Start calculating the design matrix
       # This object determines this most important characteristics of each terminal nodes
@@ -729,20 +737,25 @@ TVPsoft_bart = function(x,
       V = rep(1/tau_b, ncol(X))
       inv_V = 1/V
 
+      # print("Line 739")
+
       # Compute the log of the marginalized likelihood and log of the tree prior for the current tree
-      conditional = conditional_tilde2(curr_trees[[j]],
-                                      X,
-                                      current_partial_residuals,
-                                      sigma2,
-                                      V,
-                                      inv_V,
-                                      nu,
-                                      lambda,
-                                      tau_b,
-                                      ancestors,
-                                      ntrees)
+      conditional = conditional_tilde2(tree = curr_trees[[j]],
+                                      X = X,
+                                      R = current_partial_residuals,
+                                      sigma2 = sigma2,
+                                      V = V,
+                                      inv_V = inv_V,
+                                      nu = nu,
+                                      lambda = lambda,
+                                      tau_b = tau_b,
+                                      ancestors = ancestors,
+                                      ntreesntrees,
+                                      coeff_prior_conj = coeff_prior_conj)
+
       l_old = conditional #+ get_tree_prior(curr_trees[[j]], alpha, beta)
 
+      # print("Line 756")
 
       #Now the same principle is applied for constructing the design matrix, now using the new tree
       anc_new = get_branch(new_trees[[j]])
@@ -766,6 +779,7 @@ TVPsoft_bart = function(x,
 
       }
 
+      # print("Line 773")
 
       # New prior for the beta vector
       # p_new = ncol(X_new)
@@ -783,9 +797,11 @@ TVPsoft_bart = function(x,
                                           lambda,
                                           tau_b,
                                           ancestors,
-                                          ntrees)
+                                          ntrees,
+                                          coeff_prior_conj)
       l_new = conditional_new #+ get_tree_prior(new_trees[[j]], alpha, beta)
 
+      # print("Line 802")
 
       # Compute the alpha fir the Metropolis-Hastings step based on the type of tree modification and the likelihoods
       # a = alpha_mh(l_new,l_old, curr_trees[[j]],new_trees[[j]], type)
@@ -868,7 +884,8 @@ TVPsoft_bart = function(x,
                                             lambda,
                                             tau_b,
                                             ancestors,
-                                            ntrees)
+                                            ntrees,
+                                            coeff_prior_conj)
         l_new = conditional_new + log(tau_prior(tau_new[[j]], tau_rate)) + log(tau_new[[j]])
 
 
@@ -895,7 +912,8 @@ TVPsoft_bart = function(x,
                                             inv_V,
                                             tau_b,
                                             nu,
-                                            ancestors)
+                                            ancestors,
+                                            coeff_prior_conj)
 
       # Obtain the estimated beta's and subsequently the current tree fit
       beta_hat[[j]] = get_beta_hat(curr_trees[[j]])
@@ -918,13 +936,14 @@ TVPsoft_bart = function(x,
     beta_trees = paste_betas(curr_trees,ntrees)
 
     if(fix_var==FALSE){
-      tau_b = simulate_tau_b(beta_trees, sigma2, a,b)
+      tau_b = simulate_tau_b(beta_trees, sigma2, coeff_prior_conj, a,b)
     }
 
 
     # Get the overall log likelihood
     log_lik = sum(dnorm(y_scale, mean = predictions, sd = sqrt(sigma2), log = TRUE))
 
+    # print("Line 936")
 
 
     # if (sparse == 'TRUE' & i > floor(TotIter*0.1)){
