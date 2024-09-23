@@ -458,7 +458,7 @@ test_function = function(newdata,object){
       }
 
     # re-scale the predictions
-    preds[,i] = object$y_mean + object$y_sd*pred
+    preds[,i] = object$y_mean + object$y_sd * (pred + (object$y_max + object$y_min)/2)
 
   }
 
@@ -481,6 +481,8 @@ TVP_test_function = function(newdata,object){
 
   # Initiliaze matrices to store the predictions for each observation and iteration
   preds = matrix(NA, nrow = nrow(newdata),
+                 ncol = n_its)
+  preds_hat = matrix(NA, nrow = nrow(newdata),
                  ncol = n_its)
   # confs = matrix(NA, nrow = nrow(newdata),
   #                ncol = n_its)
@@ -535,14 +537,17 @@ TVP_test_function = function(newdata,object){
 
     }
 
+    preds_hat[,i] = object$y_mean + object$y_sd * (pred + (object$y_max + object$y_min)/2)
+
     pred <- rnorm(n = nrow(pred), mean = pred, sd =  1/sqrt(tau_b))
 
     # re-scale the predictions
-    preds[,i] = object$y_mean + object$y_sd*pred
+    preds[,i] = object$y_mean + object$y_sd * (pred + (object$y_max + object$y_min)/2)
 
   }
 
-  return(list(predictions = preds))
+  return(list(predictions = preds,
+              f_hats = preds_hat))
 
 }
 

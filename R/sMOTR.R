@@ -557,13 +557,12 @@ TVPsoft_bart = function(x,
                       alpha_prior = FALSE,
                       max_bad_trees = 10,
                       splitting_rules = "discrete",
-                      coeff_prior_conj = TRUE
+                      coeff_prior_conj = TRUE,
+                      centre_y = TRUE
                       ) {
 
 
-  # if(fix_var == TRUE){
-  tau_b <- 1 #ntrees
-  # }
+
 
 
   # print("Line 568")
@@ -617,6 +616,31 @@ TVPsoft_bart = function(x,
   y_sd = sd(y)
   y_scale = (y - y_mean)/y_sd
   n = length(y_scale)
+
+
+
+  if(centre_y){
+    y_max <- max(y_scale)
+    y_min <- min(y_scale)
+  }else{
+    y_max <- 0
+    y_min <- 0
+  }
+  y_scale <- y_scale - (y_max + y_min)/2
+
+
+  # if(fix_var == TRUE){
+  tau_b <- 1 #ntrees
+  # }
+
+  # tau_b = ntrees
+  #
+  # if(coeff_prior_conj == FALSE){
+  #   k <- 2
+  #   sigma2_beta <- (max(y_scale)-min(y_scale))/((2 * k * sqrt(ntrees))^2)
+  #   tau_b <- 1/sigma2_beta
+  # }
+
 
   # Create a list of trees for the initial stump
   curr_trees = create_stump(num_trees = ntrees,
@@ -993,7 +1017,7 @@ TVPsoft_bart = function(x,
 
   return(list(trees = tree_store,
               sigma2 = sigma2_store*y_sd^2,
-              y_hat = y_hat_store*y_sd + y_mean,
+              y_hat = (y_hat_store + (y_max + y_min)/2 )*y_sd + y_mean,
               beta_trees = beta_store,
               tau_trees = tau_store,
               tau_b_trees = tau_b_store,
@@ -1008,7 +1032,9 @@ TVPsoft_bart = function(x,
               y_sd = y_sd,
               ancestors = ancestors,
               var_count_store = var_count_store,
-              s = s_prob_store
+              s = s_prob_store,
+              y_max = y_max,
+              y_min = y_min
   ))
 }
 
