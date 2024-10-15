@@ -61,7 +61,8 @@ tree_full_conditional = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b
     IR = backsolve (U , diag ( p ))
     # btilde = crossprod ( t ( IR ))%*%( crossprod (X_node , r_node ) )
     # beta_hat = btilde + sqrt ( sigma2 )* IR %*% rnorm ( p )
-    tmulambinvmu = crossprod ( t ( IR )%*%( crossprod (X_node , r_node ) ) )
+    # tmulambinvmu = crossprod ( t ( IR )%*%( crossprod (X_node , r_node ) ) )
+    tmulambinvmu = crossprod ( crossprod ( IR , crossprod (X_node , r_node ) ) )
 
     # log_post[i] = -0.5 * (V[1] + (p-1)*V[2]  ) -  sum(diag(U)) - #determinant is 2 times det of Choleskey
     #   (1/(2*sigma2)) * (- tmulambinvmu)
@@ -123,7 +124,9 @@ simulate_beta = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors) {
 
     U = chol ( crossprod ( X_node )+ invV )
     IR = backsolve (U , diag ( p ))
-    btilde = crossprod ( t ( IR ))%*%( crossprod (X_node , r_node ) )
+    # btilde = crossprod ( t ( IR ))%*%( crossprod (X_node , r_node ) )
+    btilde = tcrossprod (  IR , crossprod( crossprod (X_node , r_node ), IR ))
+
     beta_hat = btilde + sqrt ( sigma2 )* IR %*% rnorm ( p )
 
 
