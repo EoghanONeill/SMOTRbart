@@ -36,7 +36,8 @@ smotr_bart = function(x,
                      coeff_prior_conj = TRUE,
                      k = 2,
                      sigquant = .90,
-                     centre_y = TRUE
+                     centre_y = TRUE,
+                     one_chol = FALSE
                      ) {
 
 
@@ -243,6 +244,26 @@ smotr_bart = function(x,
       V = rep(1/tau_b, ncol(X))
       inv_V = 1/V
 
+      if(one_chol){
+
+        condtilde_old = conditional_tilde2_onechol(curr_trees[[j]],
+                                         X,
+                                         current_partial_residuals,
+                                         sigma2,
+                                         V,
+                                         inv_V,
+                                         nu,
+                                         lambda,
+                                         tau_b,
+                                         ancestors,
+                                         ntrees,
+                                         coeff_prior_conj)
+
+        conditional <- condtilde_old[[1]]
+        IR_old <- condtilde_old[[2]]
+        XtR_old <- condtilde_old[[3]]
+      }else{
+
       # Compute the log of the marginalized likelihood and log of the tree prior for the current tree
        conditional = conditional_tilde2(curr_trees[[j]],
                                 X,
@@ -256,6 +277,7 @@ smotr_bart = function(x,
                                 ancestors,
                                 ntrees,
                                 coeff_prior_conj)
+      }
        l_old = conditional #+ get_tree_prior(curr_trees[[j]], alpha, beta)
 
 
@@ -284,19 +306,39 @@ smotr_bart = function(x,
       V_new = rep(1/tau_b, ncol(X_new))
       inv_V_new = 1/V_new
 
-      # Compute the log of the marginalized likelihood and the log of the tree prior for the new tree
-      conditional_new = conditional_tilde2(new_trees[[j]],
-                                X_new,
-                                current_partial_residuals,
-                                sigma2,
-                                V_new,
-                                inv_V_new,
-                                nu,
-                                lambda,
-                                tau_b,
-                                ancestors,
-                                ntrees,
-                                coeff_prior_conj)
+      if(one_chol){
+
+        condtilde_new = conditional_tilde2_onechol(new_trees[[j]],
+                                             X_new,
+                                             current_partial_residuals,
+                                             sigma2,
+                                             V_new,
+                                             inv_V_new,
+                                             nu,
+                                             lambda,
+                                             tau_b,
+                                             ancestors,
+                                             ntrees,
+                                             coeff_prior_conj)
+
+        conditional_new <- condtilde_new[[1]]
+        IR_new <- condtilde_new[[2]]
+        XtR_new <- condtilde_new[[3]]
+      }else{
+        # Compute the log of the marginalized likelihood and the log of the tree prior for the new tree
+        conditional_new = conditional_tilde2(new_trees[[j]],
+                                  X_new,
+                                  current_partial_residuals,
+                                  sigma2,
+                                  V_new,
+                                  inv_V_new,
+                                  nu,
+                                  lambda,
+                                  tau_b,
+                                  ancestors,
+                                  ntrees,
+                                  coeff_prior_conj)
+      }
      l_new = conditional_new #+ get_tree_prior(new_trees[[j]], alpha, beta)
 
 
@@ -339,6 +381,10 @@ smotr_bart = function(x,
         V = V_new
         inv_V = inv_V_new
         conditional = conditional_new
+        if(one_chol){
+          IR_old <- IR_new
+          XtR_old <- XtR_new
+        }
       }
 
 
@@ -368,19 +414,37 @@ smotr_bart = function(x,
           X_new = design_matrix(X_stand,curr_trees[[j]],phi_matrix_new) # And consequently obtain the new design matrix
         }
 
-        # Compute the log of the marginalized likelihood, log of the tau prior for the new tree
-        conditional_new = conditional_tilde2(curr_trees[[j]],
-                                            X_new,
-                                            current_partial_residuals,
-                                            sigma2,
-                                            V,
-                                            inv_V,
-                                            nu,
-                                            lambda,
-                                            tau_b,
-                                            ancestors,
-                                            ntrees,
-                                            coeff_prior_conj)
+        if(one_chol){
+          condtilde_new = conditional_tilde2_onechol(curr_trees[[j]],
+                                               X_new,
+                                               current_partial_residuals,
+                                               sigma2,
+                                               V,
+                                               inv_V,
+                                               nu,
+                                               lambda,
+                                               tau_b,
+                                               ancestors,
+                                               ntrees,
+                                               coeff_prior_conj)
+          conditional_new <- condtilde_new[[1]]
+          IR_new <- condtilde_new[[2]]
+          XtR_new <- condtilde_new[[3]]
+        }else{
+          # Compute the log of the marginalized likelihood, log of the tau prior for the new tree
+          conditional_new = conditional_tilde2(curr_trees[[j]],
+                                              X_new,
+                                              current_partial_residuals,
+                                              sigma2,
+                                              V,
+                                              inv_V,
+                                              nu,
+                                              lambda,
+                                              tau_b,
+                                              ancestors,
+                                              ntrees,
+                                              coeff_prior_conj)
+        }
         l_new = conditional_new + log(tau_prior(tau_new[[j]], tau_rate)) + log(tau_new[[j]])
 
 
@@ -394,23 +458,37 @@ smotr_bart = function(x,
           #And all the other objects are updated:
           X = X_new
           phi_matrix = phi_matrix_new
-
+          if(one_chol){
+            IR_old <- IR_new
+            XtR_old <- XtR_new
+          }
         }
       }
 
 
       # print("line 340")
-
-      # Update beta whether tree accepted or not
-      curr_trees[[j]] = simulate_beta_tilde(curr_trees[[j]],
-                                      X,
-                                      current_partial_residuals,
-                                      sigma2,
-                                      inv_V,
-                                      tau_b,
-                                      nu,
-                                      ancestors,
-                                      coeff_prior_conj)
+      if(one_chol){
+        curr_trees[[j]] = simulate_beta_tilde_onechol(curr_trees[[j]],
+                                              X,
+                                              current_partial_residuals,
+                                              sigma2,
+                                              inv_V,
+                                              tau_b,
+                                              nu,
+                                              ancestors,
+                                              coeff_prior_conj,IR_old,XtR_old)
+      }else{
+        # Update beta whether tree accepted or not
+        curr_trees[[j]] = simulate_beta_tilde(curr_trees[[j]],
+                                        X,
+                                        current_partial_residuals,
+                                        sigma2,
+                                        inv_V,
+                                        tau_b,
+                                        nu,
+                                        ancestors,
+                                        coeff_prior_conj)
+      }
 
       # Obtain the estimated beta's and subsequently the current tree fit
       beta_hat[[j]] = get_beta_hat(curr_trees[[j]])
@@ -558,7 +636,8 @@ TVPsoft_bart = function(x,
                       max_bad_trees = 10,
                       splitting_rules = "discrete",
                       coeff_prior_conj = TRUE,
-                      centre_y = TRUE
+                      centre_y = TRUE,
+                      one_chol = FALSE
                       ) {
 
 
@@ -762,21 +841,39 @@ TVPsoft_bart = function(x,
       inv_V = 1/V
 
       # print("Line 739")
+      if(one_chol){
 
-      # Compute the log of the marginalized likelihood and log of the tree prior for the current tree
-      conditional = conditional_tilde2(tree = curr_trees[[j]],
-                                      X = X,
-                                      R = current_partial_residuals,
-                                      sigma2 = sigma2,
-                                      V = V,
-                                      inv_V = inv_V,
-                                      nu = nu,
-                                      lambda = lambda,
-                                      tau_b = tau_b,
-                                      ancestors = ancestors,
-                                      ntreesntrees,
-                                      coeff_prior_conj = coeff_prior_conj)
+        condtilde_old = conditional_tilde2_onechol(tree = curr_trees[[j]],
+                                         X = X,
+                                         R = current_partial_residuals,
+                                         sigma2 = sigma2,
+                                         V = V,
+                                         inv_V = inv_V,
+                                         nu = nu,
+                                         lambda = lambda,
+                                         tau_b = tau_b,
+                                         ancestors = ancestors,
+                                         ntreesntrees,
+                                         coeff_prior_conj = coeff_prior_conj)
 
+        conditional <- condtilde_old[[1]]
+        IR_old <- condtilde_old[[2]]
+        XtR_old <- condtilde_old[[3]]
+      }else{
+        # Compute the log of the marginalized likelihood and log of the tree prior for the current tree
+        conditional = conditional_tilde2(tree = curr_trees[[j]],
+                                        X = X,
+                                        R = current_partial_residuals,
+                                        sigma2 = sigma2,
+                                        V = V,
+                                        inv_V = inv_V,
+                                        nu = nu,
+                                        lambda = lambda,
+                                        tau_b = tau_b,
+                                        ancestors = ancestors,
+                                        ntreesntrees,
+                                        coeff_prior_conj = coeff_prior_conj)
+      }
       l_old = conditional #+ get_tree_prior(curr_trees[[j]], alpha, beta)
 
       # print("Line 756")
@@ -809,20 +906,39 @@ TVPsoft_bart = function(x,
       # p_new = ncol(X_new)
       V_new = rep(1/tau_b, ncol(X_new))
       inv_V_new = 1/V_new
+      if(one_chol){
 
-      # Compute the log of the marginalized likelihood and the log of the tree prior for the new tree
-      conditional_new = conditional_tilde2(new_trees[[j]],
-                                          X_new,
-                                          current_partial_residuals,
-                                          sigma2,
-                                          V_new,
-                                          inv_V_new,
-                                          nu,
-                                          lambda,
-                                          tau_b,
-                                          ancestors,
-                                          ntrees,
-                                          coeff_prior_conj)
+        condtilde_new = conditional_tilde2_onechol(new_trees[[j]],
+                                             X_new,
+                                             current_partial_residuals,
+                                             sigma2,
+                                             V_new,
+                                             inv_V_new,
+                                             nu,
+                                             lambda,
+                                             tau_b,
+                                             ancestors,
+                                             ntrees,
+                                             coeff_prior_conj)
+
+        conditional_new <- condtilde_new[[1]]
+        IR_new <- condtilde_new[[2]]
+        XtR_new <- condtilde_new[[3]]
+      }else{
+        # Compute the log of the marginalized likelihood and the log of the tree prior for the new tree
+        conditional_new = conditional_tilde2(new_trees[[j]],
+                                            X_new,
+                                            current_partial_residuals,
+                                            sigma2,
+                                            V_new,
+                                            inv_V_new,
+                                            nu,
+                                            lambda,
+                                            tau_b,
+                                            ancestors,
+                                            ntrees,
+                                            coeff_prior_conj)
+      }
       l_new = conditional_new #+ get_tree_prior(new_trees[[j]], alpha, beta)
 
       # print("Line 802")
@@ -863,6 +979,10 @@ TVPsoft_bart = function(x,
         V = V_new
         inv_V = inv_V_new
         conditional = conditional_new
+        if(one_chol){
+          IR_old <- IR_new
+          XtR_old <- XtR_new
+        }
       }
 
 
@@ -897,19 +1017,38 @@ TVPsoft_bart = function(x,
 
         }
 
-        # Compute the log of the marginalized likelihood, log of the tau prior for the new tree
-        conditional_new = conditional_tilde2(curr_trees[[j]],
-                                            X_new,
-                                            current_partial_residuals,
-                                            sigma2,
-                                            V,
-                                            inv_V,
-                                            nu,
-                                            lambda,
-                                            tau_b,
-                                            ancestors,
-                                            ntrees,
-                                            coeff_prior_conj)
+        if(one_chol){
+          condtilde_new = conditional_tilde2_onechol(curr_trees[[j]],
+                                             X_new,
+                                             current_partial_residuals,
+                                             sigma2,
+                                             V,
+                                             inv_V,
+                                             nu,
+                                             lambda,
+                                             tau_b,
+                                             ancestors,
+                                             ntrees,
+                                             coeff_prior_conj)
+
+          conditional_new <- condtilde_new[[1]]
+          IR_new <- condtilde_new[[2]]
+          XtR_new <- condtilde_new[[3]]
+        }else{
+          # Compute the log of the marginalized likelihood, log of the tau prior for the new tree
+          conditional_new = conditional_tilde2(curr_trees[[j]],
+                                              X_new,
+                                              current_partial_residuals,
+                                              sigma2,
+                                              V,
+                                              inv_V,
+                                              nu,
+                                              lambda,
+                                              tau_b,
+                                              ancestors,
+                                              ntrees,
+                                              coeff_prior_conj)
+        }
         l_new = conditional_new + log(tau_prior(tau_new[[j]], tau_rate)) + log(tau_new[[j]])
 
 
@@ -923,21 +1062,36 @@ TVPsoft_bart = function(x,
           #And all the other objects are updated:
           X = X_new
           phi_matrix = phi_matrix_new
-
+          if(one_chol){
+            IR_old <- IR_new
+            XtR_old <- XtR_new
+          }
         }
 
       }
 
-      # Update beta whether tree accepted or not
-      curr_trees[[j]] = simulate_beta_tilde(curr_trees[[j]],
-                                            X,
-                                            current_partial_residuals,
-                                            sigma2,
-                                            inv_V,
-                                            tau_b,
-                                            nu,
-                                            ancestors,
-                                            coeff_prior_conj)
+      if(one_chol){
+        curr_trees[[j]] = simulate_beta_tilde_onechol(curr_trees[[j]],
+                                              X,
+                                              current_partial_residuals,
+                                              sigma2,
+                                              inv_V,
+                                              tau_b,
+                                              nu,
+                                              ancestors,
+                                              coeff_prior_conj,IR_old,XtR_old)
+      }else{
+        # Update beta whether tree accepted or not
+        curr_trees[[j]] = simulate_beta_tilde(curr_trees[[j]],
+                                              X,
+                                              current_partial_residuals,
+                                              sigma2,
+                                              inv_V,
+                                              tau_b,
+                                              nu,
+                                              ancestors,
+                                              coeff_prior_conj)
+      }
 
       # Obtain the estimated beta's and subsequently the current tree fit
       beta_hat[[j]] = get_beta_hat(curr_trees[[j]])

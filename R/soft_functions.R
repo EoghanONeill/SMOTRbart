@@ -278,6 +278,76 @@ conditional_tilde2 = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, a
 
 
 
+
+# The condition tilde function computes the marginalized log likelihood for all nodes for a given tree in accordance to soft MOTR
+# This function is inspired by the tree full conditional function and takes in the same input plus the number of trees
+conditional_tilde2_onechol = function(tree, X, R, sigma2, V, inv_V, nu, lambda, tau_b, ancestors, ntrees, coeff_prior_conj) {
+  #Note that we need to add the number of trees to our input
+  #Note that not all input variables are required for the function, but to keep matters congruent we leave them
+
+  # T = ntrees
+  N = nrow(X)
+  p = ncol(X)
+
+  X_node = X
+  r_node = R
+  # invV = diag(inv_V, ncol = p)
+
+  if(coeff_prior_conj == TRUE){
+    invV = diag(inv_V, ncol = p)
+  }else{
+    invV = sigma2*diag(inv_V, ncol = p)
+    V <- V/sigma2
+  }
+
+
+  U = chol ( crossprod ( X_node )+ invV )
+  IR = backsolve (U , diag ( p ))
+  # btilde = crossprod ( t ( IR ))%*%( crossprod (X_node , r_node ) )
+  # beta_hat = btilde + sqrt ( sigma2 )* IR %*% rnorm ( p )
+  # tmulambinvmu = crossprod ( t ( IR )%*%( crossprod (X_node , r_node ) ) )
+  XtR <- crossprod (X_node , r_node )
+  tmulambinvmu = crossprod ( crossprod ( IR , XtR ) )
+
+  log_lik = -0.5 * log(V[1])*p    -  sum(log(diag(U))) - #determinant is 2 times det of Choleskey
+    (1/(2*sigma2)) * (- tmulambinvmu)
+
+  # log_lik = -0.5 * (V[1] + (p-1)*V[2]  ) -  sum(diag(U)) - #determinant is 2 times det of Choleskey
+  #   (1/(2*sigma2)) * (- tmulambinvmu)
+
+
+  if(is.na(log_lik)){
+    print("-0.5 * (V[1] + (p-1)*V[2]  ) =")
+    print(-0.5 * (V[1] + (p-1)*V[2]  ))
+
+    print("sum(diag(U)) =")
+    print(sum(diag(U)))
+
+    print(" (1/(2*sigma2)) * (- tmulambinvmu) =")
+    print( (1/(2*sigma2)) * (- tmulambinvmu))
+
+    stop("is.na(log_lik)")
+
+  }
+
+  # log_lik= (-N/2)*log(2*pi) + (-1/2)*logdettemp + -(1/2)*t(R)%*%Sigma_inv%*%R
+
+  # log_lik= (-N/2)*log(2*pi) + (-1/2)*log(det(Sigma)) + -(1/2)*t(R)%*%Sigma_inv%*%R
+
+  if(is.infinite(log_lik)){
+    log_lik = -1e301
+  }
+
+  ret_list <- list()
+  ret_list[[1]] <- log_lik
+  ret_list[[2]] <- IR
+  ret_list[[3]] <- XtR
+
+  return(ret_list)
+}
+
+
+
 #The get w function determine the number of second generation internal nodes in a given tree, input: tree
 get_w = function(tree){
   if(is.null(tree) | nrow(tree$tree_matrix) == 1) { # In case the tree is empty or a stump
@@ -371,6 +441,51 @@ simulate_beta_tilde = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors, 
 
   return(tree)
 }
+
+
+# The simulate beta tilde simulates the beta tilde in accordance to soft MOTR
+# This function is inspired by the simulates beta function and takes in the same inputs
+simulate_beta_tilde_onechol = function(tree, X, R, sigma2, inv_V, tau_b, nu, ancestors, coeff_prior_conj, IR, XtR) {
+  #Note that not all input variables are required for the function, but to keep matters congruent we leave them
+
+  p = ncol(X)
+  # inv_V = diag(p)*inv_V[1]
+
+  if(coeff_prior_conj == TRUE){
+    inv_V = diag(p)*inv_V[1]
+  }else{
+    inv_V = sigma2*diag(p)*inv_V[1]
+  }
+
+  # X_node = X
+  # r_node = R
+  # # Lambda_node = solve(t(X_node)%*%X_node + inv_V)
+  # Lambda_node = chol2inv(chol(t(X_node)%*%X_node + inv_V))
+  #
+  # # Generate betas
+  # beta_hat = rmvnorm(1,
+  #                    mean = Lambda_node%*%(t(X_node)%*%r_node),
+  #                    sigma = sigma2*Lambda_node)
+
+
+  # U = chol ( crossprod ( X_node )+ inv_V )
+  # IR = backsolve (U , diag ( p ))
+  # btilde = crossprod ( t ( IR ))%*%( crossprod (X_node , r_node ) )
+  # btilde = crossprod ( t ( IR ))%*%( crossprod (X_node , r_node ) )
+
+  btilde = tcrossprod (  IR , crossprod( XtR, IR ))
+
+  beta_hat = btilde + sqrt ( sigma2 )* IR %*% rnorm ( p )
+
+
+  # Add the beta hat results to the tree matrix
+  tree$tree_matrix[,'beta_hat'] = paste(beta_hat, collapse = ',')
+
+
+  return(tree)
+}
+
+
 
 # The get beta hat function extracts the estimated beta hat matrix from the tree object in vector form, input: tree
 get_beta_hat = function(sim_beta){
