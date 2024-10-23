@@ -148,7 +148,8 @@ smotr_bart = function(x,
   }
   y_scale <- y_scale - (y_max + y_min)/2
 
-  sigma2_beta <- (max(y_scale)-min(y_scale))/((2 * k * sqrt(ntrees))^2)
+  # sigma2_beta <- (max(y_scale)-min(y_scale))/((2 * k * sqrt(ntrees))^2)
+  sigma2_beta <- ((max(y_scale)-min(y_scale))/((2 * k * sqrt(ntrees))))^2
 
   tau_b = 1 #ntrees
 
